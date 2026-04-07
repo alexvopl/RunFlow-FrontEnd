@@ -2,28 +2,259 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   RUNFLOW – Global CSS
+   Apple-level micro polish
+   ============================================ */
+
+/* Inter font with optical sizing */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
 :root {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'calt';
   line-height: 1.5;
   font-weight: 400;
-  
+  font-optical-sizing: auto;
+
   color-scheme: dark;
   background-color: #09090b;
   color: #fafafa;
+
+  /* iOS Safe Areas */
+  --safe-area-inset-top: env(safe-area-inset-top);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom);
+  --safe-area-inset-left: env(safe-area-inset-left);
+  --safe-area-inset-right: env(safe-area-inset-right);
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply antialiased select-none;
     -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    overflow-x: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better focus ring for keyboard users */
+  :focus-visible {
+    outline: 2px solid #bef264;
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply antialiased;
+    color-scheme: dark;
   }
 }
 
-/* Hide scrollbar for clean mobile look but allow scroll */
+@layer utilities {
+
+  /* ====== Safe area utilities ====== */
+  .pt-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  /* ====== Rank medallions ====== */
+  .bg-rank-gold {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+  }
+
+  .bg-rank-silver {
+    background: linear-gradient(135deg, #E8E8E8 0%, #A0A0A0 100%);
+  }
+
+  .bg-rank-bronze {
+    background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
+  }
+
+  /* ====== Glow effects ====== */
+  .trophy-glow {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  }
+
+  .primary-glow {
+    box-shadow: 0 0 24px rgba(190, 242, 100, 0.25);
+  }
+
+  .primary-glow-lg {
+    box-shadow: 0 0 48px rgba(190, 242, 100, 0.2);
+  }
+
+  /* ====== Glass morphism ====== */
+  .glass {
+    background: rgba(24, 24, 27, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-heavy {
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  /* ====== Micro-interactions ====== */
+  .press-effect {
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .press-effect:active {
+    transform: scale(0.96);
+  }
+
+  /* ====== Gradient text ====== */
+  .text-gradient {
+    background: linear-gradient(135deg, #bef264 0%, #86efac 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ====== Card shine hover ====== */
+  .card-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-shine::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(190, 242, 100, 0.04) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .card-shine:hover::after {
+    opacity: 1;
+  }
+
+  /* ====== Text sizing utilities ====== */
+  .text-2xs {
+    font-size: 0.65rem;
+    line-height: 1rem;
+  }
+
+  /* ====== Custom scrollbars ====== */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 99px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* ====== Hide scrollbar for clean mobile look ====== */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ====== Page layout base ====== */
+.page-container {
+  @apply px-4 pb-32 min-h-screen;
+}
+
+.page-header {
+  @apply pt-3 mb-7;
+}
+
+/* ====== Form fields ====== */
+.field-input {
+  @apply w-full bg-surface border border-white/[0.08] rounded-2xl px-4 py-3.5 text-white placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all;
+}
+
+/* ====== Bottom nav blur layer ====== */
+.nav-backdrop {
+  background: rgba(9, 9, 11, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+/* ====== Stat card ====== */
+.stat-card {
+  @apply bg-surface p-5 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden;
+}
+
+/* ====== Section label ====== */
+.section-label {
+  @apply text-[10px] font-black text-text-muted uppercase tracking-[0.2em] mb-3 ml-1;
+}
+
+/* ====== Primary button ====== */
+.btn-primary {
+  @apply w-full bg-primary text-black font-black py-4 rounded-2xl hover:bg-primary/90 active:scale-[0.98] transition-all shadow-lg shadow-primary/10 flex items-center justify-center gap-2;
+}
+
+/* ====== Ghost button ====== */
+.btn-ghost {
+  @apply px-4 py-2 bg-white/5 border border-white/[0.08] rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10 active:scale-[0.97] transition-all;
+}
+
+/* ====== Animated skeleton shimmer ====== */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+  background-size: 200% auto;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 12px;
+}
+
+/* ====== Smooth page scroll ====== */
+main {
+  overscroll-behavior-y: contain;
 }

@@ -1,15 +1,326 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Users, Trophy, MessageCircle, Star, Zap, X, Send, Plus, Search, UserMinus } from 'lucide-react';
+import { Shield, Trophy, MessageCircle, Zap, X, Send, Loader2 } from 'lucide-react';
+import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { CreateClanModal } from '../components/community/CreateClanModal';
+import { JoinClanModal } from '../components/community/JoinClanModal';
+import { LeaderboardTabs } from '../components/community/LeaderboardTabs';
+import { ClanCard } from '../components/community/ClanCard';
 
-export function Community() {
-    const [showChat, setShowChat] = useState(false);
-    const [isInClan, setIsInClan] = useState(true); // Toggle this to test "No Clan" state
+function ClanLeaderboard() {
+    const [clans, setClans] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        api.get('/leaderboards/clans')
+            .then(res => setClans(Array.isArray(res.data) ? res.data : []))
+            .catch(err => console.error('Failed to fetch clan leaderboard', err))
+            .finally(() => setLoading(false));
+    }, []);
+
+    if (loading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" size={24} /></div>;
+
+    if (clans.length === 0) return (
+        <div className="bg-surface border border-white/5 rounded-3xl p-6 text-center">
+            <p className="text-text-muted text-sm font-bold uppercase tracking-widest">Aucun classement disponible</p>
+        </div>
+    );
 
     return (
-        <div className="pt-6 px-4 relative min-h-screen pb-20">
+        <div className="bg-surface border border-white/5 rounded-3xl overflow-hidden divide-y divide-white/5 shadow-xl">
+            {clans.map((clan: any, i: number) => (
+                <div key={clan.id || i} className="p-4 flex items-center gap-4 group hover:bg-white/5 transition-colors">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shadow-lg ${i === 0 ? 'bg-rank-gold text-black' :
+                            i === 1 ? 'bg-rank-silver text-black' :
+                                i === 2 ? 'bg-rank-bronze text-white' :
+                                    'bg-white/5 text-text-muted border border-white/5'
+                        }`}>
+                        {i + 1}
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-sm">
+                        {clan.name?.charAt(0) || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="font-black text-sm uppercase tracking-tight truncate group-hover:text-primary transition-colors">{clan.name}</div>
+                        <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{clan.memberCount || 0} membres</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="font-black text-base">{(clan.totalDistanceKm || clan.totalDistance || 0).toFixed(0)}</div>
+                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest">KM</div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+
+export function Community() {
+    const { user } = useAuth();
+    const [clan, setClan] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [showChat, setShowChat] = useState(false);
+    const [messages, setMessages] = useState<any[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [activeTab, setActiveTab] = useState<'players' | 'clans' | 'wars'>('clans');
+    const [filter, setFilter] = useState<'global' | 'local'>('global');
+
+    // Modals
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
+
+    const fetchClan = async () => {
+        setLoading(true);
+        try {
+            const response = await api.get('/clans/me');
+            setClan(response.data);
+            if (response.data) {
+                fetchMessages(response.data.id);
+            }
+        } catch (error: any) {
+            if (error.response?.status !== 404) {
+                console.error('Failed to fetch clan', error);
+            }
+            setClan(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchMessages = async (clanId: string) => {
+        try {
+            const res = await api.get(`/clans/${clanId}/messages`);
+            setMessages(res.data);
+        } catch (error) {
+            console.error('Failed to fetch messages', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchClan();
+    }, []);
+
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !clan) return;
+        try {
+            await api.post(`/clans/${clan.id}/messages`, { content: newMessage });
+            setNewMessage('');
+            fetchMessages(clan.id);
+        } catch (error) {
+            console.error('Failed to send message', error);
+        }
+    };
+
+    const handleLeaveClan = async () => {
+        if (!confirm('Are you sure you want to leave your clan?')) return;
+        try {
+            if (user?.id) {
+                await api.post(`/clans/${clan.id}/leave`);
+                setClan(null);
+            }
+        } catch (error) {
+            console.error('Failed to leave clan', error);
+            setClan(null);
+        }
+    };
+
+    const handleKickMember = async (userId: string) => {
+        if (!confirm('Are you sure you want to kick this member?')) return;
+        try {
+            await api.delete(`/clans/${clan.id}/members/${userId}`);
+            fetchClan();
+        } catch (error) {
+            console.error('Failed to kick member', error);
+            alert('Failed to kick member');
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <Loader2 className="animate-spin text-primary" size={32} />
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative min-h-screen pb-20 px-4">
+            <CreateClanModal
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onCreated={fetchClan}
+            />
+            <JoinClanModal
+                isOpen={showJoinModal}
+                onClose={() => setShowJoinModal(false)}
+                onJoined={fetchClan}
+            />
+
+            {/* Gaming Header (Pseudo, Level, Trophies) */}
+            <div className="pt-2 mb-6">
+                <div className="bg-[#1a1a1a] rounded-2xl border border-white/5 p-4 flex items-center justify-between shadow-2xl">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-rank-gold flex items-center justify-center text-black font-black text-xl border-2 border-white/20">
+                            {user?.name?.charAt(0) || '3'}
+                        </div>
+                        <div>
+                            <h2 className="font-black uppercase tracking-tight text-white leading-none mb-1">
+                                {user?.name || 'Inconnu'}
+                            </h2>
+                            <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-none">
+                                {clan ? clan.name : 'No Clan'}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="bg-black/40 rounded-xl px-3 py-2 border border-white/5 flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                            <Trophy size={14} className="text-orange-500 " />
+                        </div>
+                        <span className="font-black text-orange-500">{user?.trophies || 0}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tabs System */}
+            <LeaderboardTabs activeTab={activeTab} onChange={setActiveTab} />
+
+            {/* Filter Global/Local */}
+            {activeTab !== 'wars' && (
+                <div className="flex gap-2 mb-6 bg-black/20 p-1 rounded-xl w-fit mx-auto">
+                    <button
+                        onClick={() => setFilter('global')}
+                        className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all ${filter === 'global' ? 'bg-white/10 text-white shadow-lg' : 'text-text-muted hover:text-white/60'}`}
+                    >
+                        Global
+                    </button>
+                    <button
+                        onClick={() => setFilter('local')}
+                        className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all ${filter === 'local' ? 'bg-white/10 text-white shadow-lg' : 'text-text-muted hover:text-white/60'}`}
+                    >
+                        Local
+                    </button>
+                </div>
+            )}
+
+            {/* Main Content Area */}
+            <AnimatePresence mode="wait">
+                {activeTab === 'clans' && (
+                    <motion.div
+                        key="clans-tab"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="space-y-3"
+                    >
+                        {clan ? (
+                            <div className="mb-6">
+                                <div className="flex justify-between items-end mb-2 ml-1">
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">Your Clan</h3>
+                                    <button
+                                        onClick={handleLeaveClan}
+                                        className="text-[9px] font-black uppercase tracking-widest text-red-500 hover:underline"
+                                    >
+                                        Leave Clan
+                                    </button>
+                                </div>
+                                <ClanCard clan={clan} rank={1} onClick={() => { }} />
+
+                                {clan.role === 'OWNER' && clan.members && (
+                                    <div className="mt-8 space-y-4">
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted ml-1">Manage Members</h3>
+                                        <div className="bg-surface border border-white/5 rounded-3xl overflow-hidden divide-y divide-white/5">
+                                            {clan.members.map((member: any) => (
+                                                <div key={member.id} className="p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center font-bold text-xs">
+                                                            {member.name?.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-bold">{member.name}</div>
+                                                            <div className="text-[9px] text-text-muted uppercase font-black">{member.role}</div>
+                                                        </div>
+                                                    </div>
+                                                    {member.id !== user?.id && (
+                                                        <button
+                                                            onClick={() => handleKickMember(member.id)}
+                                                            className="p-2 text-text-muted/30 hover:text-red-500 transition-colors"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-surface border border-white/5 rounded-3xl p-8 text-center mb-8">
+                                <Shield size={48} className="text-text-muted/30 mx-auto mb-4" />
+                                <h3 className="font-black uppercase text-xl mb-2">Ready to fight?</h3>
+                                <p className="text-text-muted text-sm mb-6">Join a clan to compete in wars and earn special rewards.</p>
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={() => setShowJoinModal(true)}
+                                        className="w-full py-4 bg-primary text-black font-black uppercase rounded-2xl hover:bg-primary/90 transition-all shadow-lg"
+                                    >
+                                        Find a Clan
+                                    </button>
+                                    <button
+                                        onClick={() => setShowCreateModal(true)}
+                                        className="w-full py-4 bg-white/5 border border-white/10 text-white font-black uppercase rounded-2xl hover:bg-white/10 transition-all"
+                                    >
+                                        Create Clan
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Top Royale Clans</h3>
+                        <ClanLeaderboard />
+                    </motion.div>
+                )}
+
+                {activeTab === 'players' && (
+                    <motion.div
+                        key="players-tab"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="space-y-3"
+                    >
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Top Royale Players</h3>
+                        <div className="bg-surface border border-white/5 rounded-3xl p-6 text-center">
+                            <p className="text-text-muted text-sm font-bold uppercase tracking-widest">Global Rankings Available Soon</p>
+                        </div>
+                    </motion.div>
+                )}
+
+                {activeTab === 'wars' && (
+                    <motion.div
+                        key="wars-tab"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="space-y-3"
+                    >
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Active Clan Wars</h3>
+                        <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-3xl p-8 text-center">
+                            <Zap size={48} className="text-red-500 mx-auto mb-4" />
+                            <h3 className="font-black uppercase text-xl mb-2 text-red-500">Battle Awaits</h3>
+                            <p className="text-text-muted text-sm mb-6">Your clan is not currently in a war. Clan leaders can start a war anytime.</p>
+                            <button className="px-8 py-3 bg-red-500 text-white font-black uppercase rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
+                                View History
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Chat Overlay if Clan Exists */}
             <AnimatePresence>
-                {showChat && (
+                {showChat && clan && (
                     <>
                         <motion.div
                             initial={{ opacity: 0 }}
@@ -30,7 +341,7 @@ export function Community() {
                                     <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
                                         <MessageCircle size={16} className="text-primary" />
                                     </div>
-                                    <span className="font-bold">Chat de Clan</span>
+                                    <span className="font-black uppercase tracking-tight text-sm">Clan Chat</span>
                                 </div>
                                 <button onClick={() => setShowChat(false)} className="p-2 hover:bg-white/5 rounded-full">
                                     <X size={20} />
@@ -38,29 +349,43 @@ export function Community() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                <div className="flex gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex-shrink-0" />
-                                    <div className="bg-surface p-3 rounded-2xl rounded-tl-sm border border-white/5">
-                                        <div className="text-xs text-blue-400 font-bold mb-1">Sarah K.</div>
-                                        <p className="text-sm">Super course tout le monde ! On continue pour la guerre !</p>
+                                {messages.map((msg: any) => (
+                                    <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.id ? 'flex-row-reverse' : ''}`}>
+                                        <div className="w-8 h-8 rounded-xl bg-white/10 flex-shrink-0 flex items-center justify-center text-[10px] font-black uppercase border border-white/10 shadow-lg">
+                                            {msg.userName?.charAt(0) || '?'}
+                                        </div>
+                                        <div className={`p-3 rounded-2xl max-w-[80%] shadow-xl ${msg.userId === user?.id
+                                            ? 'bg-primary/10 border border-primary/20 rounded-tr-sm'
+                                            : 'bg-surface border border-white/5 rounded-tl-sm'
+                                            }`}>
+                                            <div className={`text-[10px] font-black uppercase tracking-wider mb-1 ${msg.userId === user?.id ? 'text-primary' : 'text-blue-400'
+                                                }`}>{msg.userName}</div>
+                                            <p className="text-sm leading-tight">{msg.content}</p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex gap-3 flex-row-reverse">
-                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex-shrink-0" />
-                                    <div className="bg-primary/10 p-3 rounded-2xl rounded-tr-sm">
-                                        <p className="text-sm text-primary">Je fais mon 10k ce soir. Let's go!</p>
+                                ))}
+                                {messages.length === 0 && (
+                                    <div className="text-center text-text-muted text-xs font-bold uppercase tracking-widest mt-10">
+                                        No messages yet.
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             <div className="p-4 bg-surface border-t border-white/5 mb-safe pb-8">
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
-                                        placeholder="Message..."
-                                        className="flex-1 bg-background rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                        placeholder="Type a message..."
+                                        value={newMessage}
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        className="flex-1 bg-background border border-white/5 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                                     />
-                                    <button className="p-3 bg-primary text-black rounded-xl font-bold">
+                                    <button
+                                        onClick={handleSendMessage}
+                                        disabled={!newMessage.trim()}
+                                        className="p-3 bg-primary text-black rounded-xl font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all"
+                                    >
                                         <Send size={18} />
                                     </button>
                                 </div>
@@ -70,134 +395,21 @@ export function Community() {
                 )}
             </AnimatePresence>
 
-            {!isInClan ? (
-                <div className="flex flex-col items-center justify-center h-[80vh] text-center space-y-6">
-                    <div className="w-24 h-24 bg-surface rounded-3xl flex items-center justify-center mb-4 border border-white/10">
-                        <Users size={40} className="text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-black uppercase mb-2">Rejoignez un Clan</h1>
-                        <p className="text-text-muted px-8">Courez ensemble, progressez ensemble et participez aux guerres de clans.</p>
-                    </div>
-
-                    <div className="w-full space-y-3">
-                        <button
-                            onClick={() => setIsInClan(true)} // Mock join
-                            className="w-full py-4 bg-primary text-black font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-primary/90"
-                        >
-                            <Search size={20} />
-                            Trouver un clan
-                        </button>
-                        <button className="w-full py-4 bg-surface border border-white/10 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-white/5">
-                            <Plus size={20} />
-                            Créer mon clan
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <>
-                    {/* Clan Header / Banner */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-gradient-to-b from-secondary to-surface rounded-3xl p-6 border border-white/10 text-center relative overflow-hidden group"
-                    >
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                                onClick={() => { if (confirm('Quitter le clan ?')) setIsInClan(false); }}
-                                className="p-2 bg-black/20 hover:bg-red-500/20 text-text-muted hover:text-red-500 rounded-full transition-colors"
-                                title="Quitter le clan"
-                            >
-                                <UserMinus size={16} />
-                            </button>
-                        </div>
-
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
-
-                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary to-emerald-600 rounded-2xl rotate-45 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(190,242,100,0.2)] border-4 border-surface z-10 relative">
-                            <div className="-rotate-45">
-                                <Shield size={40} className="text-black" fill="currentColor" />
-                            </div>
-                        </div>
-
-                        <h1 className="text-2xl font-black uppercase tracking-wide mb-1">Night Runners</h1>
-                        <p className="text-primary text-sm font-bold tracking-widest uppercase mb-4">Niveau 12</p>
-
-                        {/* Clan Stats */}
-                        <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-4">
-                            <div className="text-center">
-                                <div className="text-xs text-text-muted uppercase font-bold mb-1">Membres</div>
-                                <div className="font-bold flex items-center justify-center gap-1">
-                                    <Users size={14} className="text-primary" />
-                                    24/50
-                                </div>
-                            </div>
-                            <div className="text-center border-l border-white/5">
-                                <div className="text-xs text-text-muted uppercase font-bold mb-1">Guerres</div>
-                                <div className="font-bold flex items-center justify-center gap-1">
-                                    <Trophy size={14} className="text-yellow-500" />
-                                    15V
-                                </div>
-                            </div>
-                            <div className="text-center border-l border-white/5">
-                                <div className="text-xs text-text-muted uppercase font-bold mb-1">Score</div>
-                                <div className="font-bold">12,450</div>
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Action Grid */}
-                    <div className="grid grid-cols-2 gap-3 mt-4">
-                        <button
-                            onClick={() => setShowChat(true)}
-                            className="bg-surface p-4 rounded-2xl border border-white/5 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-colors active:scale-95"
-                        >
-                            <div className="p-3 bg-blue-500/20 rounded-full text-blue-400">
-                                <MessageCircle size={24} />
-                            </div>
-                            <span className="font-bold text-sm">Chat de Clan</span>
-                        </button>
-                        <button className="bg-surface p-4 rounded-2xl border border-white/5 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-colors active:scale-95">
-                            <div className="p-3 bg-yellow-500/20 rounded-full text-yellow-400">
-                                <Star size={24} />
-                            </div>
-                            <span className="font-bold text-sm">Dons</span>
-                        </button>
-                    </div>
-
-                    {/* Member List (Top 3) */}
-                    <div className="mt-8">
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <Zap size={18} className="text-primary" /> Top Contributeurs
-                        </h3>
-                        <div className="space-y-3">
-                            {[
-                                { name: "Alex R.", role: "Chef", km: 154, color: "text-primary" },
-                                { name: "Sarah K.", role: "Aîné", km: 142, color: "text-blue-400" },
-                                { name: "Mike T.", role: "Membre", km: 120, color: "text-text-muted" },
-                            ].map((member, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ x: -20, opacity: 0 }}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    transition={{ delay: i * 0.1 }}
-                                    className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-white/5"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="font-black text-text-muted/50 w-6">{i + 1}</div>
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-white/10 to-transparent border border-white/10 bg-cover bg-center" />
-                                        <div>
-                                            <div className={`font-bold ${member.color} text-sm`}>{member.name}</div>
-                                            <div className="text-xs text-text-muted">{member.role}</div>
-                                        </div>
-                                    </div>
-                                    <div className="font-mono font-bold text-lg">{member.km} <span className="text-xs text-text-muted">km</span></div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-                </>
+            {/* Quick Chat Bubble if Clan exists */}
+            {clan && !showChat && (
+                <motion.button
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowChat(true)}
+                    className="fixed right-6 bottom-24 w-16 h-16 bg-primary text-black rounded-full shadow-2xl flex items-center justify-center z-40 border-4 border-background"
+                >
+                    <MessageCircle size={28} />
+                </motion.button>
             )}
         </div>
     );
 }
+
+
