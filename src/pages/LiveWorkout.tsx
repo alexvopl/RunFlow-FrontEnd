@@ -33,6 +33,14 @@ interface GpsPoint {
     timestamp: number;
 }
 
+interface WorkoutLap {
+    index: number;
+    label: string;
+    distanceMeters: number;
+    durationSeconds: number;
+    avgPaceSecPerKm: number;
+}
+
 // ─── Utilities ───────────────────────────────────────────────────────────
 function haversineDistance(a: GpsPoint, b: GpsPoint): number {
     const R = 6371e3;
@@ -86,7 +94,10 @@ export function LiveWorkout() {
     const [cadence, setCadence] = useState<number | null>(null);
     const [soundEnabled, setSoundEnabled] = useState(true);
     const [segmentIndex, setSegmentIndex] = useState(0);
+    const [segmentStartDistance, setSegmentStartDistance] = useState(0);
+    const [segmentStartElapsed, setSegmentStartElapsed] = useState(0);
     const [beeped, setBeeped] = useState(false);
+    const [lapToast, setLapToast] = useState<string | null>(null);
     const gpsPoints = useRef<GpsPoint[]>([]);
     const watchId = useRef<number | null>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -94,11 +105,15 @@ export function LiveWorkout() {
     const audioCtx = useRef<AudioContext | null>(null);
     const stepCountRef = useRef(0);
     const accelRef = useRef<any>(null);
+    const workoutStartRef = useRef<number | null>(null);
+    const completedLapsRef = useRef<WorkoutLap[]>([]);
 
     // Active segment
     const segments = guidedWorkout?.segments || null;
     const currentSegment = segments ? segments[segmentIndex] : null;
     const targetPaceMin = currentSegment?.targetPaceMin || guidedWorkout?.targetPaceMin;
+    const segmentDistanceM = Math.max(0, distanceM - segmentStartDistance);
+    const segmentElapsed = Math.max(0, elapsed - segmentStartElapsed);
 
     // ─── Beep function ────────────────────────────────────────────────────
     const beep = useCallback((freq: number, duration = 0.15, tone = 'sine' as OscillatorType) => {
@@ -116,7 +131,7 @@ export function LiveWorkout() {
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + duration);
-        } catch (e) { /* silently fail */ }
+        } catch { /* silently fail */ }
     }, [soundEnabled]);
 
     const beepTriple = useCallback(() => {
@@ -183,7 +198,7 @@ export function LiveWorkout() {
     const startAccelerometer = useCallback(() => {
         if (typeof DeviceMotionEvent === 'undefined') return;
         let lastPeak = Date.now();
-        let stepBuffer: number[] = [];
+        const stepBuffer: number[] = [];
 
         const handler = (e: DeviceMotionEvent) => {
             const acc = e.acceleration;
@@ -215,31 +230,53 @@ export function LiveWorkout() {
 
     // ─── Pace guidance beeps ──────────────────────────────────────────────
     useEffect(() => {
-        if (phase !== 'running' || !targetPaceMin || currentPaceSec <= 0) {
+        const paceToTrack = currentSegment?.distanceKm
+            ? (segmentDistanceM > 25 && segmentElapsed > 0 ? segmentElapsed / (segmentDistanceM / 1000) : 0)
+            : currentPaceSec;
+        if (phase !== 'running' || !targetPaceMin || paceToTrack <= 0) {
             setBeeped(false);
             return;
         }
-        const status = paceStatusColor(currentPaceSec, targetPaceMin);
+        const status = paceStatusColor(paceToTrack, targetPaceMin);
         if ((status === 'slow' || status === 'fast') && !beeped) {
             beep(status === 'slow' ? 330 : 660, 0.3);
             setBeeped(true);
         } else if (status === 'good') {
             setBeeped(false);
         }
-    }, [currentPaceSec, targetPaceMin, phase, beeped, beep]);
+    }, [currentPaceSec, currentSegment?.distanceKm, segmentDistanceM, segmentElapsed, targetPaceMin, phase, beeped, beep]);
 
     // ─── Segment advancement ──────────────────────────────────────────────
     useEffect(() => {
         if (!segments || phase !== 'running') return;
         const seg = segments[segmentIndex];
         if (!seg) return;
-        if (seg.distanceKm && distanceM >= seg.distanceKm * 1000) {
+        if (seg.distanceKm && segmentDistanceM >= seg.distanceKm * 1000) {
+            const lapDistanceMeters = Math.round(segmentDistanceM);
+            const lapDurationSeconds = Math.max(1, segmentElapsed);
+            completedLapsRef.current.push({
+                index: completedLapsRef.current.length + 1,
+                label: seg.label,
+                distanceMeters: lapDistanceMeters,
+                durationSeconds: lapDurationSeconds,
+                avgPaceSecPerKm: Math.round(lapDurationSeconds / Math.max(lapDistanceMeters / 1000, 0.001)),
+            });
+            setLapToast(`Tour ${completedLapsRef.current.length} terminé`);
+            setCurrentPaceSec(0);
+            setSegmentStartDistance(distanceM);
+            setSegmentStartElapsed(elapsed);
             if (segmentIndex < segments.length - 1) {
                 setSegmentIndex(i => i + 1);
                 beepTriple();
             }
         }
-    }, [distanceM, segmentIndex, segments, phase, beepTriple]);
+    }, [distanceM, elapsed, segmentDistanceM, segmentElapsed, segmentIndex, segments, phase, beepTriple]);
+
+    useEffect(() => {
+        if (!lapToast) return;
+        const timeout = window.setTimeout(() => setLapToast(null), 2200);
+        return () => window.clearTimeout(timeout);
+    }, [lapToast]);
 
     // ─── Timer ────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -253,6 +290,13 @@ export function LiveWorkout() {
 
     // ─── Actions ──────────────────────────────────────────────────────────
     const handleStart = useCallback(() => {
+        workoutStartRef.current = Date.now();
+        setSegmentStartDistance(0);
+        setSegmentStartElapsed(0);
+        completedLapsRef.current = [];
+        gpsPoints.current = [];
+        lastKmRef.current = 0;
+        setLapToast(null);
         setPhase('running');
         startGPS();
         startAccelerometer();
@@ -281,12 +325,25 @@ export function LiveWorkout() {
         // Save activity
         if (distanceM > 50 && elapsed > 10) {
             try {
+                const route = gpsPoints.current.map((point) => ({
+                    lat: point.lat,
+                    lng: point.lng,
+                }));
+                const splits = completedLapsRef.current.map((lap) => ({
+                    kmNumber: lap.index,
+                    splitTimeSec: lap.durationSeconds,
+                    avgPaceSecPerKm: lap.avgPaceSecPerKm,
+                }));
+
                 await api.post('/activities', {
                     name: guidedWorkout?.title || 'Course libre',
-                    activityType: 'RUN',
-                    startedAt: new Date(Date.now() - elapsed * 1000).toISOString(),
+                    activityType: 'run',
+                    startedAt: new Date(workoutStartRef.current ?? Date.now()).toISOString(),
                     distanceMeters: Math.round(distanceM),
                     durationSeconds: elapsed,
+                    source: 'manual',
+                    route: route.length > 1 ? route : undefined,
+                    splits: splits.length > 0 ? splits : undefined,
                 });
             } catch (e) { console.error('Failed to save activity', e); }
         }
@@ -300,7 +357,11 @@ export function LiveWorkout() {
     // ─── Derived metrics ──────────────────────────────────────────────────
     const distanceKm = distanceM / 1000;
     const speedKmH = elapsed > 0 ? (distanceKm / elapsed) * 3600 : 0;
-    const paceStatus = paceStatusColor(currentPaceSec, targetPaceMin);
+    const segmentPaceSec = segmentDistanceM > 25 && segmentElapsed > 0
+        ? segmentElapsed / (segmentDistanceM / 1000)
+        : 0;
+    const displayPaceSec = currentSegment?.distanceKm ? segmentPaceSec : currentPaceSec;
+    const paceStatus = paceStatusColor(displayPaceSec, targetPaceMin);
     const completionPct = guidedWorkout?.distanceKm
         ? Math.min(100, (distanceKm / guidedWorkout.distanceKm) * 100)
         : 0;
@@ -322,14 +383,14 @@ export function LiveWorkout() {
     // ─── Idle/Start Screen ────────────────────────────────────────────────
     if (phase === 'idle') {
         return (
-            <div className="min-h-screen bg-background flex flex-col">
+            <div className="runna-screen flex flex-col">
                 {/* Header */}
-                <div className="px-4 pt-4 pb-2 flex items-center gap-3 glass-heavy border-b border-white/5">
-                    <button onClick={() => navigate(-1)} className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center">
+                <div className="px-4 pt-4 pb-2 flex items-center gap-3 runna-topbar">
+                    <button onClick={() => navigate(-1)} className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white">
                         <ChevronLeft size={20} />
                     </button>
                     <div>
-                        <h1 className="text-base font-black uppercase tracking-tight leading-none">
+                        <h1 className="text-base font-black uppercase tracking-tight leading-none text-white">
                             {guidedWorkout ? guidedWorkout.title : 'Course Libre'}
                         </h1>
                         {guidedWorkout?.description && (
@@ -341,7 +402,7 @@ export function LiveWorkout() {
                 {/* Stats preview */}
                 {guidedWorkout && (
                     <div className="px-4 pt-6 pb-4">
-                        <div className="bg-primary/10 border border-primary/20 rounded-3xl p-5">
+                        <div className="runna-hero rounded-[28px] p-5">
                             <div className="flex items-center gap-2 mb-4">
                                 <Flag size={16} className="text-primary" />
                                 <span className="text-[10px] font-black text-primary uppercase tracking-widest">Séance Guidée</span>
@@ -376,7 +437,7 @@ export function LiveWorkout() {
                         <h3 className="section-label">Segments</h3>
                         <div className="space-y-2">
                             {segments.map((seg, i) => (
-                                <div key={i} className="flex items-center gap-3 bg-surface border border-white/5 rounded-2xl p-3.5">
+                                <div key={i} className="flex items-center gap-3 runna-card rounded-2xl p-3.5">
                                     <div className={`w-2 h-8 rounded-full flex-shrink-0 ${seg.type === 'warmup' ? 'bg-blue-400' :
                                         seg.type === 'interval' ? 'bg-orange-400' :
                                             seg.type === 'cooldown' ? 'bg-purple-400' :
@@ -404,12 +465,12 @@ export function LiveWorkout() {
                     <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={handleStart}
-                        className="w-full h-20 bg-primary text-black font-black text-lg uppercase tracking-widest rounded-3xl flex items-center justify-center gap-3 shadow-2xl shadow-primary/30"
+                        className="w-full h-20 bg-primary text-white font-black text-lg uppercase tracking-widest rounded-3xl flex items-center justify-center gap-3 shadow-2xl shadow-primary/30"
                     >
                         <Play size={28} fill="currentColor" />
                         Démarrer
                     </motion.button>
-                    <p className="text-center text-[10px] text-text-muted/50 font-bold uppercase tracking-widest mt-3">Le GPS démarrera automatiquement</p>
+                    <p className="text-center text-[10px] text-text-muted font-bold uppercase tracking-widest mt-3">Le GPS démarrera automatiquement</p>
                 </div>
             </div>
         );
@@ -422,7 +483,7 @@ export function LiveWorkout() {
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center"
+                className="runna-screen flex flex-col items-center justify-center px-6 text-center"
             >
                 <motion.div
                     initial={{ scale: 0 }}
@@ -430,7 +491,7 @@ export function LiveWorkout() {
                     transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
                     className="w-24 h-24 bg-primary rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-primary/30"
                 >
-                    <Flag size={40} className="text-black" fill="currentColor" />
+                    <Flag size={40} className="text-white" fill="currentColor" />
                 </motion.div>
                 <h1 className="text-3xl font-black uppercase tracking-tight mb-1">Bravo !</h1>
                 <p className="text-text-muted text-sm mb-8 font-medium">Séance terminée · Activité enregistrée</p>
@@ -441,7 +502,7 @@ export function LiveWorkout() {
                         { label: 'Temps', value: formatTime(elapsed), unit: '' },
                         { label: 'Allure moy.', value: formatPace(avgPace), unit: '/km' },
                     ].map(m => (
-                        <div key={m.label} className="bg-surface rounded-2xl p-4 border border-white/5 text-center">
+                        <div key={m.label} className="runna-card rounded-2xl p-4 text-center">
                             <div className="text-lg font-black text-white">{m.value}</div>
                             {m.unit && <div className="text-[9px] text-primary uppercase font-black tracking-widest">{m.unit}</div>}
                             <div className="text-[9px] text-text-muted uppercase tracking-widest mt-1 font-bold">{m.label}</div>
@@ -461,12 +522,12 @@ export function LiveWorkout() {
 
     // ─── Active Workout HUD ───────────────────────────────────────────────
     return (
-        <div className="min-h-screen bg-background flex flex-col select-none overflow-hidden">
+        <div className="runna-screen flex flex-col select-none overflow-hidden">
             {/* Top bar */}
-            <div className="px-4 pt-4 pb-3 flex items-center justify-between glass-heavy border-b border-white/5">
+            <div className="px-4 pt-4 pb-3 flex items-center justify-between runna-topbar">
                 <button
                     onClick={() => { if (window.confirm('Abandonner la séance ?')) handleStop(); }}
-                    className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center"
+                    className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white"
                 >
                     <ChevronLeft size={20} />
                 </button>
@@ -474,11 +535,11 @@ export function LiveWorkout() {
                     <div className="text-[10px] font-black text-text-muted uppercase tracking-widest">
                         {phase === 'paused' ? '⏸ En pause' : '● En cours'}
                     </div>
-                    {guidedWorkout && <div className="text-xs font-black">{guidedWorkout.title}</div>}
+                    {guidedWorkout && <div className="text-xs font-black text-white">{guidedWorkout.title}</div>}
                 </div>
                 <button
                     onClick={() => setSoundEnabled(s => !s)}
-                    className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-text-muted"
+                    className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-text-muted"
                 >
                     {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
                 </button>
@@ -490,14 +551,14 @@ export function LiveWorkout() {
                     <motion.div
                         initial={{ y: -40, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        className={`mx-4 mt-3 rounded-2xl px-4 py-3 flex items-center justify-between ${currentSegment.type === 'interval' ? 'bg-orange-500/10 border border-orange-500/20' :
-                            currentSegment.type === 'rest' ? 'bg-white/5 border border-white/5' :
+                        className={`mx-4 mt-3 rounded-2xl px-4 py-3 flex items-center justify-between ${currentSegment.type === 'interval' ? 'bg-orange-500/10 border border-orange-400/30' :
+                            currentSegment.type === 'rest' ? 'runna-card' :
                                 'bg-primary/10 border border-primary/20'
                             }`}
                     >
                         <div>
                             <div className="text-[9px] font-black text-text-muted uppercase tracking-widest">Segment {segmentIndex + 1}/{segments?.length}</div>
-                            <div className="text-sm font-black">{currentSegment.label}</div>
+                            <div className="text-sm font-black text-white">{currentSegment.label}</div>
                         </div>
                         {currentSegment.targetPaceMin && (
                             <div className="text-right">
@@ -509,11 +570,25 @@ export function LiveWorkout() {
                 )}
             </AnimatePresence>
 
+            <AnimatePresence>
+                {lapToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -16, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -12, scale: 0.96 }}
+                        className="mx-4 mt-3 rounded-2xl px-4 py-3 bg-primary/12 border border-primary/25"
+                    >
+                        <div className="text-[10px] font-black text-primary uppercase tracking-widest">Fractionné</div>
+                        <div className="text-sm font-black text-white">{lapToast}</div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Main metrics */}
             <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
                 {/* Timer — huge */}
                 <div className="text-center">
-                    <div className="text-7xl font-black tabular-nums tracking-tighter leading-none">
+                    <div className="text-7xl font-black tabular-nums tracking-tighter leading-none text-white">
                         {formatTime(elapsed)}
                     </div>
                     <div className="text-[10px] font-black text-text-muted uppercase tracking-widest mt-2">Temps écoulé</div>
@@ -521,7 +596,7 @@ export function LiveWorkout() {
 
                 {/* Distance */}
                 <div className="text-center">
-                    <div className="text-5xl font-black tabular-nums leading-none">
+                    <div className="text-5xl font-black tabular-nums leading-none text-white">
                         {distanceKm.toFixed(2)}
                         <span className="text-xl text-text-muted ml-1">km</span>
                     </div>
@@ -547,11 +622,11 @@ export function LiveWorkout() {
                 {/* Secondary metrics grid */}
                 <div className="grid grid-cols-2 gap-4 w-full max-w-xs">
                     {/* Pace */}
-                    <div className={`bg-surface rounded-2xl p-4 border ${paceStatus === 'good' ? 'border-primary/30' : paceStatus === 'slow' ? 'border-red-500/30' : paceStatus === 'fast' ? 'border-blue-400/30' : 'border-white/5'} text-center transition-colors`}>
-                        <Zap size={14} className={`mx-auto mb-1 ${paceColor}`} />
-                        <div className={`text-2xl font-black tabular-nums ${paceColor}`}>
-                            {formatPace(currentPaceSec)}
-                        </div>
+                        <div className={`runna-card rounded-2xl p-4 border ${paceStatus === 'good' ? 'border-primary/30' : paceStatus === 'slow' ? 'border-red-300' : paceStatus === 'fast' ? 'border-blue-300' : 'border-white/10'} text-center transition-colors`}>
+                            <Zap size={14} className={`mx-auto mb-1 ${paceColor}`} />
+                            <div className={`text-2xl font-black tabular-nums ${paceColor}`}>
+                                {formatPace(displayPaceSec)}
+                            </div>
                         <div className="text-[9px] text-text-muted uppercase font-black tracking-widest mt-0.5">/km</div>
                         {paceLabel && (
                             <div className={`text-[9px] font-black mt-1 ${paceColor}`}>{paceLabel}</div>
@@ -559,14 +634,14 @@ export function LiveWorkout() {
                     </div>
 
                     {/* Speed */}
-                    <div className="bg-surface rounded-2xl p-4 border border-white/5 text-center">
+                        <div className="runna-card rounded-2xl p-4 text-center">
                         <Activity size={14} className="text-text-muted mx-auto mb-1" />
                         <div className="text-2xl font-black tabular-nums">{speedKmH.toFixed(1)}</div>
                         <div className="text-[9px] text-text-muted uppercase font-black tracking-widest mt-0.5">km/h</div>
                     </div>
 
                     {/* Heart rate */}
-                    <div className="bg-surface rounded-2xl p-4 border border-white/5 text-center">
+                        <div className="runna-card rounded-2xl p-4 text-center">
                         <Heart size={14} className={`mx-auto mb-1 ${heartRate ? 'text-red-400' : 'text-text-muted'}`} />
                         <div className={`text-2xl font-black tabular-nums ${heartRate ? 'text-red-400' : 'text-text-muted'}`}>
                             {heartRate ?? '--'}
@@ -575,7 +650,7 @@ export function LiveWorkout() {
                     </div>
 
                     {/* Cadence */}
-                    <div className="bg-surface rounded-2xl p-4 border border-white/5 text-center">
+                        <div className="runna-card rounded-2xl p-4 text-center">
                         <MapPin size={14} className="text-text-muted mx-auto mb-1" />
                         <div className="text-2xl font-black tabular-nums">
                             {cadence ?? '--'}
@@ -633,7 +708,7 @@ export function LiveWorkout() {
                             onClick={handleResume}
                             className="w-20 h-20 bg-primary rounded-3xl flex items-center justify-center shadow-lg shadow-primary/30"
                         >
-                            <Play size={28} className="text-black" fill="black" />
+                            <Play size={28} className="text-white" fill="white" />
                         </motion.button>
                         <motion.button
                             whileTap={{ scale: 0.9 }}

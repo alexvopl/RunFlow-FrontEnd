@@ -10,11 +10,11 @@ interface ManualActivityModalProps {
 }
 
 const ACTIVITY_TYPES = [
-    { value: 'RUN', label: 'Course' },
-    { value: 'TRAIL', label: 'Trail' },
-    { value: 'WALK', label: 'Marche' },
-    { value: 'BIKE', label: 'Vélo' },
-    { value: 'SWIM', label: 'Natation' },
+    { value: 'run', label: 'Course' },
+    { value: 'trail', label: 'Trail' },
+    { value: 'walk', label: 'Marche' },
+    { value: 'cycling', label: 'Vélo' },
+    { value: 'hike', label: 'Rando' },
 ];
 
 export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: ManualActivityModalProps) {
@@ -22,7 +22,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
         name: '',
-        activityType: 'RUN',
+        activityType: 'run',
         startedAt: new Date().toISOString().slice(0, 16),
         distanceKm: '',
         durationMin: '',
@@ -49,7 +49,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
             // Reset form
             setFormData({
                 name: '',
-                activityType: 'RUN',
+                activityType: 'run',
                 startedAt: new Date().toISOString().slice(0, 16),
                 distanceKm: '',
                 durationMin: '',

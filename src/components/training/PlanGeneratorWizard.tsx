@@ -11,7 +11,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        goal: 'half-marathon', // marathon, half, 10k, 5k
+        goal: 'half_marathon', // marathon, half_marathon, 10k, 5k — must match backend enum
         durationWeeks: 12,
         sessionsPerWeek: 4,
         targetDate: new Date(Date.now() + 12 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -58,7 +58,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                 userData: {
                     currentWeeklyKm: formData.currentWeeklyKm
                 }
-            });
+            }, { timeout: 120000 }); // 2 minutes — AI generation can take a while
             onPlanGenerated();
         } catch (error) {
             console.error('Failed to generate plan', error);
@@ -80,7 +80,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                             {[
                                 { id: '5k', label: '5 KM', icon: Zap, desc: 'Rapide & intense' },
                                 { id: '10k', label: '10 KM', icon: Target, desc: 'Classique' },
-                                { id: 'half-marathon', label: 'SEMI', icon: Activity, desc: 'Endurance' },
+                                { id: 'half_marathon', label: 'SEMI', icon: Activity, desc: 'Endurance' },
                                 { id: 'marathon', label: 'MARATHON', icon: Target, desc: 'Le graal' }
                             ].map(g => {
                                 const isSelected = formData.goal === g.id;
@@ -190,19 +190,27 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                         ) : preview ? (
                             <div className="bg-surface rounded-3xl border border-white/5 p-6 space-y-6 shadow-2xl relative overflow-hidden">
                                 <div className="flex justify-between items-center relative z-10">
-                                    <span className="text-xs font-black text-text-muted uppercase tracking-widest">Distance Totale</span>
-                                    <span className="text-3xl font-black text-primary">{preview.totalKm || 0} KM</span>
+                                    <span className="text-xs font-black text-text-muted uppercase tracking-widest">Semaines</span>
+                                    <span className="text-3xl font-black text-primary">{preview.totalWeeks} sem.</span>
                                 </div>
                                 <div className="w-full h-px bg-white/10 relative z-10" />
                                 <div className="grid grid-cols-2 gap-4 relative z-10">
                                     <div className="p-4 bg-background rounded-2xl border border-white/5">
-                                        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Semaine Max</div>
-                                        <div className="text-xl font-black">{preview.peakWeeklyKm || 0} <span className="text-xs text-text-muted">km</span></div>
+                                        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Pic semaine</div>
+                                        <div className="text-xl font-black">{Math.round((preview.estimatedPeakWeeklyMinutes || 0) / 60)}h <span className="text-xs text-text-muted">max</span></div>
                                     </div>
                                     <div className="p-4 bg-background rounded-2xl border border-white/5">
-                                        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Sortie Longue</div>
-                                        <div className="text-xl font-black">{preview.longestRunKm || 0} <span className="text-xs text-text-muted">km</span></div>
+                                        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Séances / sem.</div>
+                                        <div className="text-xl font-black">{formData.sessionsPerWeek} <span className="text-xs text-text-muted">/ sem</span></div>
                                     </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 relative z-10">
+                                    {preview.phases?.map((phase: any, i: number) => (
+                                        <div key={i} className="p-3 bg-background rounded-2xl border border-white/5">
+                                            <div className="text-[9px] font-black text-primary uppercase tracking-widest mb-1">{phase.name}</div>
+                                            <div className="text-sm font-black">{phase.weeks} <span className="text-xs text-text-muted">sem.</span></div>
+                                        </div>
+                                    ))}
                                 </div>
                                 <p className="text-[10px] text-text-muted leading-relaxed font-medium relative z-10">
                                     Ce plan personnalisé inclut des semaines d'assimilation et une montée en charge progressive basée sur vos {formData.currentWeeklyKm} km actuels.

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Trophy, MessageCircle, Zap, X, Send, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { CreateClanModal } from '../components/community/CreateClanModal';
 import { JoinClanModal } from '../components/community/JoinClanModal';
 import { LeaderboardTabs } from '../components/community/LeaderboardTabs';
@@ -14,7 +15,7 @@ function ClanLeaderboard() {
 
     useEffect(() => {
         api.get('/leaderboards/clans')
-            .then(res => setClans(Array.isArray(res.data) ? res.data : []))
+            .then(res => setClans(Array.isArray(res.data?.rankings) ? res.data.rankings : []))
             .catch(err => console.error('Failed to fetch clan leaderboard', err))
             .finally(() => setLoading(false));
     }, []);
@@ -45,8 +46,8 @@ function ClanLeaderboard() {
                         <div className="font-black text-sm uppercase tracking-tight truncate group-hover:text-primary transition-colors">{clan.name}</div>
                         <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{clan.memberCount || 0} membres</div>
                     </div>
-                    <div className="text-right">
-                        <div className="font-black text-base">{(clan.totalDistanceKm || clan.totalDistance || 0).toFixed(0)}</div>
+                        <div className="text-right">
+                        <div className="font-black text-base">{(((clan.totalDistanceM || clan.totalDistance || 0) as number) / 1000).toFixed(0)}</div>
                         <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest">KM</div>
                     </div>
                 </div>
@@ -58,6 +59,7 @@ function ClanLeaderboard() {
 
 export function Community() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [clan, setClan] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showChat, setShowChat] = useState(false);
@@ -70,13 +72,39 @@ export function Community() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
 
-    const fetchClan = async () => {
+    const fetchMessages = useCallback(async (clanId: string) => {
+        try {
+            const res = await api.get(`/clans/${clanId}/messages`);
+            setMessages(Array.isArray(res.data?.messages) ? res.data.messages : []);
+        } catch (error) {
+            console.error('Failed to fetch messages', error);
+        }
+    }, []);
+
+    const fetchClan = useCallback(async () => {
         setLoading(true);
         try {
             const response = await api.get('/clans/me');
-            setClan(response.data);
-            if (response.data) {
-                fetchMessages(response.data.id);
+            const myClan = response.data?.clan ?? null;
+            const membership = response.data?.membership ?? null;
+            let clanDetails = null;
+
+            if (myClan?.id) {
+                const detailsRes = await api.get(`/clans/${myClan.id}`).catch(() => ({ data: null }));
+                clanDetails = detailsRes.data;
+            }
+
+            const normalizedClan = myClan ? {
+                ...myClan,
+                members: clanDetails?.members,
+                role: membership?.role,
+                score: Math.round((myClan.totalDistanceM ?? 0) / 1000),
+                level: 1,
+            } : null;
+
+            setClan(normalizedClan);
+            if (normalizedClan?.id) {
+                fetchMessages(normalizedClan.id);
             }
         } catch (error: any) {
             if (error.response?.status !== 404) {
@@ -86,20 +114,11 @@ export function Community() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const fetchMessages = async (clanId: string) => {
-        try {
-            const res = await api.get(`/clans/${clanId}/messages`);
-            setMessages(res.data);
-        } catch (error) {
-            console.error('Failed to fetch messages', error);
-        }
-    };
+    }, [fetchMessages]);
 
     useEffect(() => {
         fetchClan();
-    }, []);
+    }, [fetchClan]);
 
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !clan) return;
@@ -113,7 +132,7 @@ export function Community() {
     };
 
     const handleLeaveClan = async () => {
-        if (!confirm('Are you sure you want to leave your clan?')) return;
+        if (!confirm('Voulez-vous vraiment quitter votre clan ?')) return;
         try {
             if (user?.id) {
                 await api.post(`/clans/${clan.id}/leave`);
@@ -126,13 +145,13 @@ export function Community() {
     };
 
     const handleKickMember = async (userId: string) => {
-        if (!confirm('Are you sure you want to kick this member?')) return;
+        if (!confirm('Voulez-vous vraiment exclure ce membre ?')) return;
         try {
             await api.delete(`/clans/${clan.id}/members/${userId}`);
             fetchClan();
         } catch (error) {
             console.error('Failed to kick member', error);
-            alert('Failed to kick member');
+            alert("Impossible d'exclure ce membre pour le moment.");
         }
     };
 
@@ -169,7 +188,7 @@ export function Community() {
                                 {user?.name || 'Inconnu'}
                             </h2>
                             <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest leading-none">
-                                {clan ? clan.name : 'No Clan'}
+                                {clan ? clan.name : 'Aucun clan'}
                             </p>
                         </div>
                     </div>
@@ -192,7 +211,7 @@ export function Community() {
                         onClick={() => setFilter('global')}
                         className={`px-6 py-2 rounded-lg text-xs font-black uppercase transition-all ${filter === 'global' ? 'bg-white/10 text-white shadow-lg' : 'text-text-muted hover:text-white/60'}`}
                     >
-                        Global
+                        Monde
                     </button>
                     <button
                         onClick={() => setFilter('local')}
@@ -216,19 +235,19 @@ export function Community() {
                         {clan ? (
                             <div className="mb-6">
                                 <div className="flex justify-between items-end mb-2 ml-1">
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">Your Clan</h3>
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">Votre clan</h3>
                                     <button
                                         onClick={handleLeaveClan}
                                         className="text-[9px] font-black uppercase tracking-widest text-red-500 hover:underline"
                                     >
-                                        Leave Clan
+                                        Quitter
                                     </button>
                                 </div>
                                 <ClanCard clan={clan} rank={1} onClick={() => { }} />
 
-                                {clan.role === 'OWNER' && clan.members && (
+                                {clan.role === 'leader' && clan.members && (
                                     <div className="mt-8 space-y-4">
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted ml-1">Manage Members</h3>
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted ml-1">Gérer les membres</h3>
                                         <div className="bg-surface border border-white/5 rounded-3xl overflow-hidden divide-y divide-white/5">
                                             {clan.members.map((member: any) => (
                                                 <div key={member.id} className="p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
@@ -241,9 +260,9 @@ export function Community() {
                                                             <div className="text-[9px] text-text-muted uppercase font-black">{member.role}</div>
                                                         </div>
                                                     </div>
-                                                    {member.id !== user?.id && (
+                                                    {member.userId !== user?.id && (
                                                         <button
-                                                            onClick={() => handleKickMember(member.id)}
+                                                            onClick={() => handleKickMember(member.userId)}
                                                             className="p-2 text-text-muted/30 hover:text-red-500 transition-colors"
                                                         >
                                                             <X size={16} />
@@ -258,26 +277,26 @@ export function Community() {
                         ) : (
                             <div className="bg-surface border border-white/5 rounded-3xl p-8 text-center mb-8">
                                 <Shield size={48} className="text-text-muted/30 mx-auto mb-4" />
-                                <h3 className="font-black uppercase text-xl mb-2">Ready to fight?</h3>
-                                <p className="text-text-muted text-sm mb-6">Join a clan to compete in wars and earn special rewards.</p>
+                                <h3 className="font-black uppercase text-xl mb-2">Prêt à rejoindre l'équipe ?</h3>
+                                <p className="text-text-muted text-sm mb-6">Rejoignez un clan pour courir ensemble, vous challenger et gagner des récompenses.</p>
                                 <div className="flex flex-col gap-2">
                                     <button
                                         onClick={() => setShowJoinModal(true)}
-                                        className="w-full py-4 bg-primary text-black font-black uppercase rounded-2xl hover:bg-primary/90 transition-all shadow-lg"
+                                        className="w-full py-4 bg-primary text-white font-black uppercase rounded-2xl hover:bg-primary/90 transition-all shadow-lg"
                                     >
-                                        Find a Clan
+                                        Rejoindre un clan
                                     </button>
                                     <button
                                         onClick={() => setShowCreateModal(true)}
                                         className="w-full py-4 bg-white/5 border border-white/10 text-white font-black uppercase rounded-2xl hover:bg-white/10 transition-all"
                                     >
-                                        Create Clan
+                                        Créer un clan
                                     </button>
                                 </div>
                             </div>
                         )}
 
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Top Royale Clans</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Meilleurs clans</h3>
                         <ClanLeaderboard />
                     </motion.div>
                 )}
@@ -290,9 +309,9 @@ export function Community() {
                         exit={{ opacity: 0, y: -10 }}
                         className="space-y-3"
                     >
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Top Royale Players</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Meilleurs joueurs</h3>
                         <div className="bg-surface border border-white/5 rounded-3xl p-6 text-center">
-                            <p className="text-text-muted text-sm font-bold uppercase tracking-widest">Global Rankings Available Soon</p>
+                            <p className="text-text-muted text-sm font-bold uppercase tracking-widest">Classement mondial bientôt disponible</p>
                         </div>
                     </motion.div>
                 )}
@@ -305,13 +324,16 @@ export function Community() {
                         exit={{ opacity: 0, y: -10 }}
                         className="space-y-3"
                     >
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Active Clan Wars</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-2 ml-1">Guerres de clans</h3>
                         <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-3xl p-8 text-center">
                             <Zap size={48} className="text-red-500 mx-auto mb-4" />
-                            <h3 className="font-black uppercase text-xl mb-2 text-red-500">Battle Awaits</h3>
-                            <p className="text-text-muted text-sm mb-6">Your clan is not currently in a war. Clan leaders can start a war anytime.</p>
-                            <button className="px-8 py-3 bg-red-500 text-white font-black uppercase rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
-                                View History
+                            <h3 className="font-black uppercase text-xl mb-2 text-red-500">Aucune guerre en cours</h3>
+                            <p className="text-text-muted text-sm mb-6">Votre clan n'est pas engagé actuellement. Les leaders pourront lancer ce mode plus tard.</p>
+                            <button
+                                onClick={() => navigate('/challenges')}
+                                className="px-8 py-3 bg-red-500 text-white font-black uppercase rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                            >
+                                Voir l'historique
                             </button>
                         </div>
                     </motion.div>
@@ -341,7 +363,7 @@ export function Community() {
                                     <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
                                         <MessageCircle size={16} className="text-primary" />
                                     </div>
-                                    <span className="font-black uppercase tracking-tight text-sm">Clan Chat</span>
+                                    <span className="font-black uppercase tracking-tight text-sm">Chat du clan</span>
                                 </div>
                                 <button onClick={() => setShowChat(false)} className="p-2 hover:bg-white/5 rounded-full">
                                     <X size={20} />
@@ -352,21 +374,21 @@ export function Community() {
                                 {messages.map((msg: any) => (
                                     <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.id ? 'flex-row-reverse' : ''}`}>
                                         <div className="w-8 h-8 rounded-xl bg-white/10 flex-shrink-0 flex items-center justify-center text-[10px] font-black uppercase border border-white/10 shadow-lg">
-                                            {msg.userName?.charAt(0) || '?'}
+                                            {(msg.displayName || msg.username || '?').charAt(0)}
                                         </div>
                                         <div className={`p-3 rounded-2xl max-w-[80%] shadow-xl ${msg.userId === user?.id
                                             ? 'bg-primary/10 border border-primary/20 rounded-tr-sm'
                                             : 'bg-surface border border-white/5 rounded-tl-sm'
                                             }`}>
                                             <div className={`text-[10px] font-black uppercase tracking-wider mb-1 ${msg.userId === user?.id ? 'text-primary' : 'text-blue-400'
-                                                }`}>{msg.userName}</div>
+                                            }`}>{msg.displayName || msg.username || 'Inconnu'}</div>
                                             <p className="text-sm leading-tight">{msg.content}</p>
                                         </div>
                                     </div>
                                 ))}
                                 {messages.length === 0 && (
                                     <div className="text-center text-text-muted text-xs font-bold uppercase tracking-widest mt-10">
-                                        No messages yet.
+                                        Aucun message pour le moment.
                                     </div>
                                 )}
                             </div>
@@ -375,7 +397,7 @@ export function Community() {
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
-                                        placeholder="Type a message..."
+                                        placeholder="Écrire un message..."
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
                                         className="flex-1 bg-background border border-white/5 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all shadow-inner"
@@ -384,7 +406,7 @@ export function Community() {
                                     <button
                                         onClick={handleSendMessage}
                                         disabled={!newMessage.trim()}
-                                        className="p-3 bg-primary text-black rounded-xl font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all"
+                                        className="p-3 bg-primary text-white rounded-xl font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all"
                                     >
                                         <Send size={18} />
                                     </button>
@@ -403,7 +425,7 @@ export function Community() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setShowChat(true)}
-                    className="fixed right-6 bottom-24 w-16 h-16 bg-primary text-black rounded-full shadow-2xl flex items-center justify-center z-40 border-4 border-background"
+                    className="fixed right-6 bottom-24 w-16 h-16 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center z-40 border-4 border-background"
                 >
                     <MessageCircle size={28} />
                 </motion.button>
@@ -411,5 +433,3 @@ export function Community() {
         </div>
     );
 }
-
-

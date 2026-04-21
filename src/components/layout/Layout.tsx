@@ -7,7 +7,7 @@ export function Layout() {
     const isWorkout = location.pathname === '/workout';
 
     return (
-        <div className="min-h-screen bg-background text-text font-sans antialiased overflow-x-hidden selection:bg-primary/20">
+        <div className="app-shell min-h-screen bg-background text-text font-sans antialiased overflow-x-hidden selection:bg-primary/20">
             <AnimatePresence mode="wait">
                 <motion.main
                     key={location.pathname}
@@ -15,7 +15,7 @@ export function Layout() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: isWorkout ? 0 : -8 }}
                     transition={{ duration: isWorkout ? 0.15 : 0.22, ease: [0.25, 0.1, 0.25, 1.0] }}
-                    className={isWorkout ? '' : 'pb-32 pt-safe'}
+                    className={isWorkout ? 'app-main' : 'app-main pb-32 pt-safe'}
                 >
                     <Outlet />
                 </motion.main>

@@ -8,9 +8,9 @@ interface LeaderboardTabsProps {
 
 export function LeaderboardTabs({ activeTab, onChange }: LeaderboardTabsProps) {
     const tabs = [
-        { id: 'players', label: 'Players' },
+        { id: 'players', label: 'Joueurs' },
         { id: 'clans', label: 'Clans' },
-        { id: 'wars', label: 'Clan Wars' },
+        { id: 'wars', label: 'Guerres' },
     ] as const;
 
     return (

@@ -5,7 +5,7 @@ import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { SocialModal } from '../components/profile/SocialModal';
 import { TrophyCompareModal } from '../components/profile/TrophyCompareModal';
 import { api } from '../services/api';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type ToastType = 'success' | 'error' | 'loading';
@@ -17,6 +17,7 @@ interface Toast {
 
 export function Profile() {
     const { user, logout } = useAuth();
+    const navigate = useNavigate();
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [socialModal, setSocialModal] = useState<{ isOpen: boolean; title: string } | null>(null);
     const [isTrophyModalOpen, setIsTrophyModalOpen] = useState(false);
@@ -71,7 +72,7 @@ export function Profile() {
             await api.post('/strava/sync');
             setStravaLoading(null);
             showToast('success', 'Activités Strava synchronisées !');
-        } catch (error) {
+        } catch {
             setStravaLoading(null);
             showToast('error', 'Échec de la synchronisation Strava.');
         }
@@ -128,27 +129,33 @@ export function Profile() {
 
             <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} />
 
-            <div className="px-4">
+            <div className="px-4 pt-4">
                 {/* === Header === */}
-                <div className="flex justify-between items-center pt-4 mb-8">
-                    <h1 className="text-xl font-black uppercase tracking-tight">Profil</h1>
+                <div className="flex justify-between items-start mb-8">
+                    <div>
+                        <p className="page-eyebrow mb-2">Mon profil</p>
+                        <h1 className="page-title">Profil</h1>
+                    </div>
                     <div className="flex gap-1">
                         <Link to="/notifications" className="relative p-2.5 hover:bg-white/5 rounded-xl transition-colors">
                             <Bell size={20} className="text-text-muted" />
                             {unreadCount > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-black text-[9px] font-black rounded-full flex items-center justify-center">
+                                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center">
                                     {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
                             )}
                         </Link>
-                        <button className="p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                        <button
+                            onClick={() => setIsEditModalOpen(true)}
+                            className="p-2.5 hover:bg-white/5 rounded-xl transition-colors"
+                        >
                             <Settings size={20} className="text-text-muted" />
                         </button>
                     </div>
                 </div>
 
                 {/* === Avatar + Identity === */}
-                <div className="flex flex-col items-center mb-8">
+                <div className="hero-panel flex flex-col items-center mb-8 p-6 sm:p-8">
                     <div className="relative mb-4">
                         <div className="w-24 h-24 rounded-[28px] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-2xl shadow-primary/10">
                             <span className="text-3xl font-black text-gradient">{initials}</span>
@@ -165,7 +172,7 @@ export function Profile() {
                     <p className="text-text-muted text-xs font-medium mb-4">{user?.email}</p>
 
                     {/* Social stats */}
-                    <div className="flex items-center gap-8 mb-5">
+                    <div className="flex items-center gap-5 sm:gap-8 mb-5">
                         <button onClick={() => setSocialModal({ isOpen: true, title: 'Abonnés' })} className="flex flex-col items-center group">
                             <span className="text-xl font-black leading-none group-hover:text-primary transition-colors">{user?.followersCount || 0}</span>
                             <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest mt-0.5">Abonnés</span>
@@ -184,7 +191,7 @@ export function Profile() {
 
                     <button
                         onClick={() => setIsEditModalOpen(true)}
-                        className="px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black tracking-[0.15em] uppercase hover:bg-white/10 transition-colors"
+                        className="btn-ghost px-6 py-2.5 text-[10px] tracking-[0.15em]"
                     >
                         Modifier le profil
                     </button>
@@ -193,7 +200,7 @@ export function Profile() {
                 {/* === Strava Connection Card === */}
                 <div className="mb-6">
                     <h3 className="section-label">Connexions</h3>
-                    <div className={`bg-surface rounded-3xl border overflow-hidden shadow-xl transition-all ${stravaStatus?.connected ? 'border-orange-500/20' : 'border-white/5'}`}>
+                    <div className={`premium-panel border overflow-hidden transition-all ${stravaStatus?.connected ? 'border-orange-500/20' : 'border-white/5'}`}>
                         <div className="p-5">
                             <div className="flex items-center gap-4">
                                 {/* Strava orange logo-like icon */}
@@ -249,7 +256,7 @@ export function Profile() {
                 </div>
 
                 {/* === Premium Banner === */}
-                <div className="bg-gradient-to-br from-primary/10 via-transparent to-transparent border border-primary/15 rounded-3xl p-6 mb-6 relative overflow-hidden shadow-2xl">
+                <div className="hero-panel p-6 mb-6 relative overflow-hidden">
                     <Crown size={80} className="absolute -bottom-3 -right-3 text-primary/6 rotate-12" />
                     <div className="relative z-10">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/15 rounded-lg mb-3">
@@ -260,7 +267,10 @@ export function Profile() {
                         <p className="text-xs text-text-muted mb-4 leading-relaxed font-medium max-w-xs">
                             Plans illimités, coaching IA avancé, analytics détaillés.
                         </p>
-                        <button className="px-5 py-2.5 bg-primary text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary/90 active:scale-[0.97] transition-all shadow-lg shadow-primary/20">
+                        <button
+                            onClick={() => showToast('success', 'Fonctionnalité Premium bientôt disponible 🚀')}
+                            className="px-5 py-2.5 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary/90 active:scale-[0.97] transition-all shadow-lg shadow-primary/20"
+                        >
                             S'abonner
                         </button>
                     </div>
@@ -272,16 +282,20 @@ export function Profile() {
                         <h3 className="section-label">Mon compte</h3>
                         <div className="bg-surface rounded-3xl border border-white/5 overflow-hidden divide-y divide-white/5 shadow-lg">
                             {[
-                                { icon: Footprints, label: 'Mon équipement' },
-                                { icon: ShoppingBag, label: 'Mes offres' },
-                                { icon: Gift, label: 'Programme de parrainage' },
+                                { icon: Footprints, label: 'Mon équipement', path: null },
+                                { icon: ShoppingBag, label: 'Mes offres', path: null },
+                                { icon: Gift, label: 'Programme de parrainage', path: null },
                             ].map((item, i) => (
-                                <button key={i} className="w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors group text-left">
-                                    <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted group-hover:text-white group-hover:bg-white/10 transition-colors">
+                                <button
+                                    key={i}
+                                    disabled
+                                    className="w-full p-4 flex items-center gap-4 opacity-40 cursor-not-allowed text-left"
+                                >
+                                    <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted">
                                         <item.icon size={18} />
                                     </div>
                                     <span className="flex-1 text-sm font-bold">{item.label}</span>
-                                    <ChevronRight size={16} className="text-text-muted/30 group-hover:text-text-muted transition-colors" />
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-text-muted border border-white/10 rounded-md px-1.5 py-0.5">Bientôt</span>
                                 </button>
                             ))}
                         </div>
@@ -291,18 +305,36 @@ export function Profile() {
                         <h3 className="section-label">Préférences</h3>
                         <div className="bg-surface rounded-3xl border border-white/5 overflow-hidden divide-y divide-white/5 shadow-lg">
                             {[
-                                { icon: Heart, label: 'Zones cardiaques' },
-                                { icon: Smartphone, label: 'Apparence' },
+                                { icon: Heart, label: 'Zones cardiaques', path: null },
+                                { icon: Smartphone, label: 'Apparence', path: null },
                                 { icon: Bell, label: 'Notifications', path: '/notifications' },
-                                { icon: ShieldCheck, label: 'Confidentialité' },
+                                { icon: ShieldCheck, label: 'Confidentialité', path: null },
                             ].map((item, i) => (
-                                <button key={i} className="w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors group text-left">
-                                    <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted group-hover:text-white group-hover:bg-white/10 transition-colors">
-                                        <item.icon size={18} />
-                                    </div>
-                                    <span className="flex-1 text-sm font-bold">{item.label}</span>
-                                    <ChevronRight size={16} className="text-text-muted/30 group-hover:text-text-muted transition-colors" />
-                                </button>
+                                item.path ? (
+                                    <button
+                                        key={i}
+                                        onClick={() => navigate(item.path!)}
+                                        className="w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors group text-left"
+                                    >
+                                        <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted group-hover:text-white group-hover:bg-white/10 transition-colors">
+                                            <item.icon size={18} />
+                                        </div>
+                                        <span className="flex-1 text-sm font-bold">{item.label}</span>
+                                        <ChevronRight size={16} className="text-text-muted/30 group-hover:text-text-muted transition-colors" />
+                                    </button>
+                                ) : (
+                                    <button
+                                        key={i}
+                                        disabled
+                                        className="w-full p-4 flex items-center gap-4 opacity-40 cursor-not-allowed text-left"
+                                    >
+                                        <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted">
+                                            <item.icon size={18} />
+                                        </div>
+                                        <span className="flex-1 text-sm font-bold">{item.label}</span>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-text-muted border border-white/10 rounded-md px-1.5 py-0.5">Bientôt</span>
+                                    </button>
+                                )
                             ))}
                         </div>
                     </div>

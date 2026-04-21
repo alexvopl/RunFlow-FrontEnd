@@ -15,7 +15,7 @@ export function ActivityDetail() {
         const fetchDetail = async () => {
             try {
                 const response = await api.get(`/activities/${id}`);
-                setActivity(response.data);
+                setActivity(response.data?.activity ?? response.data);
             } catch (error) {
                 console.error('Failed to fetch activity detail', error);
                 navigate('/activities'); // fallback

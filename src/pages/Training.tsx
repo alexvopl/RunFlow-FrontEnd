@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays, isSameDay } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,14 +18,57 @@ export function Training() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deletingPlan, setDeletingPlan] = useState(false);
     const [adaptationRecommended, setAdaptationRecommended] = useState<any>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    const fetchPlan = async () => {
+    const checkAdaptation = useCallback(async (planId: string) => {
+        try {
+            const res = await api.get(`/training/plans/${planId}/adaptation`);
+            if (res.data.recommended) {
+                setAdaptationRecommended(res.data);
+            }
+        } catch (error) {
+            console.error('Failed to check adaptation', error);
+        }
+    }, []);
+
+    const fetchPlan = useCallback(async () => {
         setLoading(true);
         try {
             const response = await api.get('/training/plans');
-            const plans = response.data;
+            const plans = response.data?.plans ?? response.data;
             if (Array.isArray(plans) && plans.length > 0) {
-                const plan = plans[0];
+                // The list endpoint returns lightweight metadata — fetch the full plan with workouts
+                const fullPlanRes = await api.get(`/training/plans/${plans[0].id}`);
+                const fullPlan = fullPlanRes.data?.plan ?? fullPlanRes.data;
+                // Build a flat structure the UI expects from the full plan response
+                const plan = {
+                    ...fullPlan,
+                    id: fullPlan.id,
+                    name: fullPlan.goal,
+                    goal: fullPlan.goal,
+                    targetDate: fullPlan.targetDate,
+                    startDate: fullPlan.periodization?.startDate,
+                    totalDistance: fullPlan.weeks
+                        ?.flatMap((w: any) => w.workouts)
+                        .reduce((sum: number, w: any) => sum + (w.targetDistance || 0), 0)
+                        .toFixed(0),
+                    workouts: fullPlan.weeks?.flatMap((w: any) =>
+                        w.workouts
+                            .filter((wo: any) => wo.type !== 'rest')
+                            .map((wo: any, i: number) => ({
+                                id: `${fullPlan.id}-w${w.weekNumber}-${i}`,
+                                date: (() => {
+                                    const start = new Date(w.startDate);
+                                    start.setDate(start.getDate() + i);
+                                    return start.toISOString().split('T')[0];
+                                })(),
+                                title: wo.title,
+                                description: wo.description,
+                                durationMinutes: wo.targetDuration,
+                                distanceKm: wo.targetDistance,
+                            }))
+                    ) ?? [],
+                };
                 setActivePlan(plan);
                 checkAdaptation(plan.id);
             } else {
@@ -36,18 +79,7 @@ export function Training() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const checkAdaptation = async (planId: string) => {
-        try {
-            const res = await api.get(`/training/plans/${planId}/adaptation`);
-            if (res.data.recommended) {
-                setAdaptationRecommended(res.data);
-            }
-        } catch (error) {
-            console.error('Failed to check adaptation', error);
-        }
-    };
+    }, [checkAdaptation]);
 
     const handleAdaptation = async (accept: boolean) => {
         if (!activePlan) return;
@@ -63,12 +95,15 @@ export function Training() {
     const deletePlan = async () => {
         if (!activePlan) return;
         setDeletingPlan(true);
+        setDeleteError(null);
         try {
             await api.delete(`/training/plans/${activePlan.id}`);
-            setActivePlan(null);
             setShowDeleteConfirm(false);
+            setAdaptationRecommended(null);
+            await fetchPlan();
         } catch (error) {
             console.error('Failed to delete plan', error);
+            setDeleteError("Impossible de supprimer ce plan pour le moment.");
         } finally {
             setDeletingPlan(false);
         }
@@ -76,7 +111,7 @@ export function Training() {
 
     useEffect(() => {
         fetchPlan();
-    }, []);
+    }, [fetchPlan]);
 
     const dates = Array.from({ length: 14 }).map((_, i) => addDays(new Date(), i));
 
@@ -90,18 +125,19 @@ export function Training() {
 
     if (!activePlan && !showWizard) {
         return (
-            <div className="px-4 pb-20 bg-background min-h-screen flex flex-col items-center justify-center text-center space-y-8">
-                <div className="w-24 h-24 bg-surface rounded-[2.5rem] flex items-center justify-center border border-white/5 shadow-2xl relative overflow-hidden">
+            <div className="runna-screen px-4 pb-20 min-h-screen flex flex-col items-center justify-center text-center space-y-8">
+                <div className="w-24 h-24 premium-panel rounded-[2rem] flex items-center justify-center shadow-2xl relative overflow-hidden">
                     <Flag size={32} className="text-primary relative z-10" />
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-highlight/10" />
                 </div>
                 <div className="max-w-xs">
-                    <h1 className="text-2xl font-black uppercase tracking-tight text-white mb-3">Aucun Plan Actif</h1>
-                    <p className="text-text-muted text-sm font-medium leading-relaxed">Boostez vos performances avec un plan d'entraînement personnalisé adapté à vos objectifs.</p>
+                    <p className="page-eyebrow mb-3">Plan d'entraînement</p>
+                    <h1 className="text-3xl font-black tracking-tight text-white mb-3">Aucun plan actif</h1>
+                    <p className="text-text-muted text-sm font-medium leading-relaxed">Crée un programme structuré, clair et motivant pour retrouver ton cadre d'entraînement.</p>
                 </div>
                 <button
                     onClick={() => setShowWizard(true)}
-                    className="w-full max-w-xs py-4 bg-white text-black font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-[1.02] transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-xl"
+                    className="btn-primary w-full max-w-xs text-xs uppercase tracking-widest hover:scale-[1.02] transition-transform"
                 >
                     <Plus size={18} />
                     Créer mon plan
@@ -112,9 +148,11 @@ export function Training() {
 
     if (showWizard) {
         return (
-            <div className="px-4 pb-20 bg-background min-h-screen">
-                <header className="pt-2 mb-8">
-                    <h1 className="text-xl font-black uppercase tracking-tight">Nouveau Plan</h1>
+            <div className="runna-screen px-4 pb-20 min-h-screen">
+                <header className="pt-4 mb-8">
+                    <p className="page-eyebrow mb-2">Plan d'entraînement</p>
+                    <h1 className="page-title">Nouveau plan</h1>
+                    <p className="page-subtitle mt-3">Crée un programme structuré, lisible et prêt à suivre séance par séance.</p>
                 </header>
                 <PlanGeneratorWizard onPlanGenerated={() => { setShowWizard(false); fetchPlan(); }} />
             </div>
@@ -131,19 +169,29 @@ export function Training() {
     const currentWeek = Math.max(1, Math.min(totalWeeks, Math.ceil((new Date().getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000))));
 
     return (
-        <div className="min-h-screen pb-20">
-            <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} workoutId={selectedWorkout?.id || ''} />
+        <div className="runna-screen pb-20">
+            <FeedbackModal
+            isOpen={showFeedback}
+            onClose={() => setShowFeedback(false)}
+            workoutId={selectedWorkout?.id || ''}
+            planId={activePlan.id || ''}
+            weekNumber={currentWeek}
+            workoutType={selectedWorkout?.type || 'easy_run'}
+        />
 
             {/* Delete Plan Confirmation Modal */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
-                    <div className="relative w-full max-w-sm bg-surface border border-white/10 rounded-3xl p-6 shadow-2xl">
+                    <div className="relative w-full max-w-sm premium-panel p-6 shadow-2xl">
                         <div className="flex items-center justify-center w-16 h-16 bg-red-500/10 rounded-2xl mx-auto mb-4">
                             <Trash2 size={28} className="text-red-500" />
                         </div>
                         <h3 className="text-lg font-black uppercase tracking-tight text-center mb-2">Supprimer le plan ?</h3>
                         <p className="text-text-muted text-xs text-center font-medium leading-relaxed mb-6">Cette action est irréversible. Votre plan d'entraînement sera définitivement supprimé.</p>
+                        {deleteError && (
+                            <p className="text-red-400 text-xs text-center font-semibold mb-4">{deleteError}</p>
+                        )}
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
@@ -163,22 +211,38 @@ export function Training() {
                 </div>
             )}
 
-            <div className="px-4 space-y-8 pt-2">
+            <div className="px-4 space-y-8 pt-4">
                 <header>
-                    <h1 className="text-xl font-black uppercase tracking-tight mb-6">Entraînement</h1>
+                    <div className="mb-6">
+                        <p className="page-eyebrow mb-2">Plan d'entraînement</p>
+                        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+                            <div>
+                                <h1 className="page-title">Entraînement</h1>
+                                <p className="page-subtitle mt-3 max-w-xs">Un cockpit plus lisible pour suivre ton bloc, ton volume et la séance du jour.</p>
+                            </div>
+                            <div className="metric-pill hidden sm:inline-flex">
+                                <Zap size={14} className="text-primary" />
+                                Semaine {currentWeek}
+                            </div>
+                        </div>
+                    </div>
 
-                    <div className="bg-surface rounded-3xl p-6 border border-white/5 relative overflow-hidden shadow-2xl">
+                    <div className="runna-hero rounded-[32px] p-6">
                         <div className="flex justify-between items-start mb-6 relative z-10">
                             <div className="max-w-[70%]">
-                                <h2 className="text-lg font-black leading-tight uppercase tracking-tight mb-2">{activePlan.name || activePlan.goal}</h2>
+                                <div className="runna-pill mb-3 w-fit">
+                                    <CalendarIcon size={12} className="text-primary" />
+                                    Bloc actif
+                                </div>
+                                <h2 className="text-[1.65rem] font-black leading-tight tracking-tight mb-2 text-white">{activePlan.name || activePlan.goal}</h2>
                                 <div className="flex items-center gap-2 text-[10px] text-text-muted font-bold uppercase tracking-widest">
                                     <CalendarIcon size={12} />
                                     <span>Objectif: <span className="text-white">{activePlan.targetDate}</span></span>
                                 </div>
                             </div>
-                            <div className="w-12 h-14 bg-primary rounded-b-3xl rounded-t-xl shadow-lg shadow-primary/20 flex flex-col items-center justify-center border-t border-white/20">
-                                <div className="text-[10px] font-black text-black/60 uppercase leading-none mb-0.5">{activePlan.distance || '42k'}</div>
-                                <div className="text-black font-black text-xs uppercase italic tracking-tighter">RUN</div>
+                            <div className="w-14 h-16 bg-primary rounded-[1.4rem] shadow-lg shadow-primary/20 flex flex-col items-center justify-center border border-white/20">
+                                <div className="text-[10px] font-black text-white/70 uppercase leading-none mb-0.5">{activePlan.distance || '42k'}</div>
+                                <div className="text-white font-black text-xs uppercase italic tracking-tighter">RUN</div>
                             </div>
                         </div>
 
@@ -194,20 +258,20 @@ export function Training() {
                         <div className="flex justify-between items-end mb-6 relative z-10">
                             <div>
                                 <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Semaines</div>
-                                <div className="text-2xl font-black">{currentWeek}/{totalWeeks}</div>
+                                <div className="text-2xl font-black text-white">{currentWeek}/{totalWeeks}</div>
                             </div>
                             <div className="text-right">
-                                <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Total Distance</div>
-                                <div className="text-2xl font-black">{activePlan.totalDistance || 0} <span className="text-sm font-bold text-text-muted">KM</span></div>
+                                <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Distance totale</div>
+                                <div className="text-2xl font-black text-white">{activePlan.totalDistance || 0} <span className="text-sm font-bold text-text-muted">KM</span></div>
                             </div>
                         </div>
 
-                        <button className="w-full py-4 flex items-center justify-between text-[10px] font-black uppercase tracking-widest border-t border-white/5 hover:text-primary transition-colors">
+                        <button className="w-full py-4 flex items-center justify-between text-[10px] font-black uppercase tracking-widest border-t border-white/10 hover:text-primary transition-colors text-text-muted">
                             <span className="flex items-center gap-2"><Flag size={14} /> {activePlan.targetEvent || 'Objectif Final'}</span>
                             <ChevronRight size={14} className="text-text-muted" />
                         </button>
 
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] -mr-32 -mt-32" />
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[90px] -mr-32 -mt-32" />
                     </div>
                 </header>
 
@@ -215,7 +279,7 @@ export function Training() {
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-primary/10 border border-primary/20 rounded-3xl p-6 relative overflow-hidden"
+                        className="runna-card rounded-[28px] p-6 relative overflow-hidden"
                     >
                         <div className="relative z-10">
                             <h3 className="text-sm font-black uppercase tracking-tight text-primary mb-2">Adaptation Recommandée</h3>
@@ -225,7 +289,7 @@ export function Training() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => handleAdaptation(true)}
-                                    className="px-6 py-2 bg-primary text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform shadow-lg shadow-primary/20"
+                                    className="px-6 py-2 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform shadow-lg shadow-primary/20"
                                 >
                                     Accepter
                                 </button>
@@ -241,17 +305,17 @@ export function Training() {
                     </motion.div>
                 )}
 
-                <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                     {[
-                        { icon: ClipboardList, label: "Vue d'ensemble", action: undefined },
-                        { icon: LayoutGrid, label: "Connecté", action: undefined },
+                        { icon: ClipboardList, label: "Résumé", action: () => navigate('/activities') },
+                        { icon: LayoutGrid, label: "Strava", action: () => navigate('/profile') },
                         { icon: Trash2, label: "Supprimer", action: () => setShowDeleteConfirm(true), danger: true },
                     ].map((item, i) => (
-                        <button key={i} onClick={item.action} className={`bg-surface p-4 rounded-3xl border border-white/5 flex flex-col items-center gap-3 transition-all group ${item.danger ? 'hover:bg-red-500/10 hover:border-red-500/20' : 'hover:bg-white/5'}`}>
-                            <div className={`w-10 h-10 rounded-2xl border border-white/10 flex items-center justify-center transition-colors ${item.danger ? 'group-hover:bg-red-500 group-hover:text-white group-hover:border-red-500' : 'group-hover:bg-primary group-hover:text-black'}`}>
+                        <button key={i} onClick={item.action} className={`runna-card rounded-[24px] p-4 flex flex-col items-center gap-3 transition-all group ${item.danger ? 'hover:border-red-400/30 hover:bg-red-500/5' : 'hover:border-primary/30 hover:bg-primary/5'}`}>
+                            <div className={`w-10 h-10 rounded-2xl border border-white/10 flex items-center justify-center transition-colors ${item.danger ? 'group-hover:bg-red-500 group-hover:text-white group-hover:border-red-500' : 'group-hover:bg-primary group-hover:text-white group-hover:border-primary'}`}>
                                 <item.icon size={20} className="text-text-muted group-hover:text-inherit" />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest text-center leading-tight opacity-60 group-hover:opacity-100 ${item.danger ? 'group-hover:text-red-500' : ''}`}>{item.label}</span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest text-center leading-tight text-text-muted group-hover:opacity-100 ${item.danger ? 'group-hover:text-red-400' : 'group-hover:text-primary'}`}>{item.label}</span>
                         </button>
                     ))}
                 </div>
@@ -268,7 +332,7 @@ export function Training() {
                                     className={clsx(
                                         "flex flex-col items-center min-w-[4rem] py-4 rounded-[1.5rem] border transition-all duration-300",
                                         isSelected
-                                            ? "bg-white text-black border-white shadow-xl scale-105"
+                                            ? "bg-primary text-white border-primary shadow-xl scale-105"
                                             : "bg-surface border-white/5 text-text-muted hover:bg-white/5"
                                     )}
                                 >
@@ -329,7 +393,7 @@ export function Training() {
                                             }
                                         }
                                     })}
-                                    className="w-full py-4 bg-primary text-black font-black uppercase tracking-widest text-xs rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform active:scale-[0.98] shadow-lg shadow-primary/20"
+                                    className="w-full py-4 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform active:scale-[0.98] shadow-lg shadow-primary/20"
                                 >
                                     <Play size={18} fill="currentColor" />
                                     Lancer la séance
@@ -349,4 +413,3 @@ export function Training() {
         </div>
     );
 }
-

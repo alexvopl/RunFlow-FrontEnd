@@ -7,14 +7,16 @@ export default {
     theme: {
         extend: {
             colors: {
-                background: "#09090b", // zinc-950
-                surface: "#18181b", // zinc-900
-                primary: "#bef264", // lime-400 (Runna-like neon green)
-                secondary: "#27272a", // zinc-800
-                text: "#fafafa", // zinc-50
-                "text-muted": "#a1a1aa", // zinc-400
+                background: "#07111f",
+                surface: "#101a2b",
+                primary: "#5ab2ff",
+                secondary: "#182438",
+                text: "#f5f7fb",
+                "text-muted": "#94a3b8",
                 danger: "#ef4444", // red-500
                 success: "#22c55e", // green-500
+                accent: "#38bdf8",
+                highlight: "#93c5fd",
             },
             fontFamily: {
                 sans: ['Inter', 'sans-serif'],

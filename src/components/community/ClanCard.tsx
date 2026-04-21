@@ -1,3 +1,4 @@
+import { clsx } from 'clsx';
 import { Shield, Users, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -75,5 +76,3 @@ export function ClanCard({ clan, rank, onClick }: ClanCardProps) {
         </motion.button>
     );
 }
-
-import { clsx } from 'clsx';

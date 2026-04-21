@@ -25,6 +25,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const mapUser = (authData: any, profileData?: any): User => ({
+        id: authData?.userId ?? authData?.id ?? profileData?.id ?? '',
+        email: authData?.email ?? profileData?.email ?? '',
+        name: profileData?.display_name ?? profileData?.username ?? authData?.name,
+        trophies: profileData?.trophies ?? authData?.trophies,
+        followersCount: profileData?.followers_count ?? authData?.followersCount,
+        followingCount: profileData?.following_count ?? authData?.followingCount,
+    });
+
     useEffect(() => {
         const checkAuth = async () => {
             const token = getAccessToken();
@@ -38,7 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     api.get('/auth/whoami'),
                     api.get('/profiles/me').catch(() => ({ data: null }))
                 ]);
-                setUser({ ...whoamiRes.data, ...profileRes.data });
+                const profile = profileRes.data?.profile ?? profileRes.data ?? null;
+                setUser(mapUser(whoamiRes.data, profile));
             } catch (error) {
                 console.error('Failed to fetch user profile:', error);
                 // Token might be invalid, clear it
@@ -56,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { access_token, refresh_token, user } = response.data;
 
         setTokens(access_token, refresh_token);
-        setUser(user);
+        setUser(mapUser(user));
     };
 
     const signup = async (email: string, password: string, acceptTerms: boolean) => {
@@ -64,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { access_token, refresh_token, user } = response.data;
 
         setTokens(access_token, refresh_token);
-        setUser(user);
+        setUser(mapUser(user));
     };
 
     const logout = () => {

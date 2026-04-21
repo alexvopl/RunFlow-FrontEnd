@@ -25,15 +25,24 @@ export function Challenges() {
                         api.get('/challenges/active'),
                         api.get('/challenges/stats').catch(() => ({ data: null }))
                     ]);
-                    setChallenges(Array.isArray(challengesRes.data) ? challengesRes.data : [challengesRes.data].filter(Boolean));
+                    const activeChallenge = challengesRes.data?.challenge;
+                    const myEntry = challengesRes.data?.myEntry;
+                    const progress = challengesRes.data?.progress ?? 0;
+
+                    setChallenges(activeChallenge ? [{
+                        ...activeChallenge,
+                        progress,
+                        current: myEntry?.currentValue ?? 0,
+                        goal: activeChallenge.targetValue,
+                    }] : []);
                     setStats(statsRes.data);
                 } else if (activeTab === 'history') {
                     const res = await api.get('/challenges/history');
-                    setHistory(Array.isArray(res.data) ? res.data : []);
+                    setHistory(Array.isArray(res.data?.challenges) ? res.data.challenges : []);
                 } else {
                     const endpoint = timeframe === 'global' ? '/leaderboards/global' : `/leaderboards/${timeframe}`;
                     const res = await api.get(endpoint);
-                    setLeaderboard(Array.isArray(res.data) ? res.data : []);
+                    setLeaderboard(Array.isArray(res.data?.entries) ? res.data.entries : []);
                 }
             } catch (error) {
                 console.error('Failed to fetch data', error);
@@ -48,7 +57,7 @@ export function Challenges() {
         setSelectedChallenge(challenge);
         try {
             const res = await api.get(`/challenges/${challenge.id}/leaderboard`);
-            setChallengeLeaderboard(Array.isArray(res.data) ? res.data : []);
+            setChallengeLeaderboard(Array.isArray(res.data?.entries) ? res.data.entries : []);
         } catch {
             setChallengeLeaderboard([]);
         }
@@ -60,7 +69,15 @@ export function Challenges() {
             await api.post(`/challenges/${challengeId}/refresh`);
             // Re-fetch challenges after refresh
             const res = await api.get('/challenges/active');
-            setChallenges(Array.isArray(res.data) ? res.data : [res.data].filter(Boolean));
+            const activeChallenge = res.data?.challenge;
+            const myEntry = res.data?.myEntry;
+            const progress = res.data?.progress ?? 0;
+            setChallenges(activeChallenge ? [{
+                ...activeChallenge,
+                progress,
+                current: myEntry?.currentValue ?? 0,
+                goal: activeChallenge.targetValue,
+            }] : []);
         } catch (error) {
             console.error('Failed to refresh challenge', error);
         } finally {
@@ -85,7 +102,7 @@ export function Challenges() {
                 </header>
 
                 {/* Progress */}
-                <div className="bg-surface rounded-3xl p-6 border border-white/5 mb-6 shadow-xl">
+                <div className="hero-panel p-6 mb-6">
                     <div className="flex justify-between items-center mb-4">
                         <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Progression</span>
                         <span className="text-primary font-black">{selectedChallenge.progress || 0}%</span>
@@ -120,7 +137,7 @@ export function Challenges() {
                 {/* Leaderboard */}
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-3 ml-1">Classement du défi</h3>
                 {challengeLeaderboard.length > 0 ? (
-                    <div className="bg-surface border border-white/5 rounded-3xl overflow-hidden divide-y divide-white/5 shadow-xl">
+                    <div className="premium-panel overflow-hidden divide-y divide-white/5">
                         {challengeLeaderboard.map((u: any, i: number) => (
                             <div key={i} className="p-4 flex items-center gap-4">
                                 <div className={clsx(
@@ -133,17 +150,17 @@ export function Challenges() {
                                     {i + 1}
                                 </div>
                                 <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-sm">
-                                    {u.name?.charAt(0)}
+                                    {(u.clanName || u.displayName || u.username || '?').charAt(0)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-black text-sm uppercase tracking-tight truncate">{u.name}</div>
+                                    <div className="font-black text-sm uppercase tracking-tight truncate">{u.clanName || u.displayName || u.username || 'Inconnu'}</div>
                                 </div>
-                                <div className="font-black">{u.score || u.progress || 0}</div>
+                                <div className="font-black">{u.currentValue || u.totalDistanceM || 0}</div>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <div className="bg-surface border border-white/5 border-dashed rounded-3xl p-8 text-center">
+                    <div className="premium-panel border-dashed p-8 text-center">
                         <Trophy size={32} className="text-text-muted/20 mx-auto mb-2" />
                         <p className="text-text-muted text-xs font-bold uppercase tracking-widest">Classement indisponible</p>
                     </div>
@@ -154,14 +171,17 @@ export function Challenges() {
 
     return (
         <div className="px-4 pb-24 min-h-screen">
-            <header className="pt-2 mb-8">
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-xl font-black uppercase tracking-tight">Compétition</h1>
-                    <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+            <header className="pt-4 mb-8">
+                <div className="flex flex-col items-start gap-4 mb-6 sm:flex-row sm:justify-between sm:items-center">
+                    <div>
+                        <p className="page-eyebrow mb-2">Défis et classements</p>
+                        <h1 className="page-title">Compétition</h1>
+                    </div>
+                    <div className="flex w-full overflow-x-auto no-scrollbar bg-white/5 p-1 rounded-2xl border border-white/5 sm:w-auto">
                         <button
                             onClick={() => setActiveTab('challenges')}
                             className={clsx(
-                                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
                                 activeTab === 'challenges' ? "bg-white text-black shadow-lg" : "text-text-muted hover:text-white"
                             )}
                         >
@@ -170,7 +190,7 @@ export function Challenges() {
                         <button
                             onClick={() => setActiveTab('history')}
                             className={clsx(
-                                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
                                 activeTab === 'history' ? "bg-white text-black shadow-lg" : "text-text-muted hover:text-white"
                             )}
                         >
@@ -179,7 +199,7 @@ export function Challenges() {
                         <button
                             onClick={() => setActiveTab('leaderboard')}
                             className={clsx(
-                                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
                                 activeTab === 'leaderboard' ? "bg-white text-black shadow-lg" : "text-text-muted hover:text-white"
                             )}
                         >
@@ -191,12 +211,12 @@ export function Challenges() {
                 {/* Stats bar — only on challenges tab */}
                 {activeTab === 'challenges' && stats && (
                     <div className="grid grid-cols-3 gap-3 mb-6">
-                        {[
+                            {[
                             { label: 'Complétés', value: stats.completed || 0 },
-                            { label: 'En cours', value: stats.active || 0 },
-                            { label: 'Total KM', value: (stats.totalKm || 0).toFixed(0) },
+                            { label: 'Total défis', value: stats.totalChallenges || 0 },
+                            { label: 'Points', value: stats.totalPointsEarned || 0 },
                         ].map((s, i) => (
-                            <div key={i} className="bg-surface rounded-2xl p-3 border border-white/5 text-center">
+                            <div key={i} className="premium-panel rounded-2xl p-3 text-center">
                                 <div className="text-lg font-black">{s.value}</div>
                                 <div className="text-[9px] text-text-muted font-bold uppercase tracking-widest">{s.label}</div>
                             </div>
@@ -205,9 +225,9 @@ export function Challenges() {
                 )}
 
                 {activeTab === 'challenges' && (
-                    <div className="bg-gradient-to-br from-primary/20 to-transparent border border-primary/20 rounded-3xl p-5 relative overflow-hidden group">
+                    <div className="hero-panel p-5 relative overflow-hidden group">
                         <div className="relative z-10 flex items-center gap-4">
-                            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-black shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
+                            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
                                 <Star size={24} fill="currentColor" />
                             </div>
                             <div>
@@ -236,7 +256,7 @@ export function Challenges() {
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: i * 0.1 }}
                                         onClick={() => handleOpenChallenge(challenge)}
-                                        className="bg-surface rounded-3xl p-6 border border-white/5 relative overflow-hidden group hover:border-white/10 transition-all shadow-xl cursor-pointer active:scale-[0.98]"
+                                        className="premium-panel p-6 relative overflow-hidden group hover:border-white/10 transition-all cursor-pointer active:scale-[0.98]"
                                     >
                                         <div className="flex justify-between items-start mb-4 relative z-10">
                                             <div className="px-2.5 py-1 bg-white/5 rounded-lg border border-white/10 text-[9px] font-black uppercase tracking-widest text-primary">
@@ -330,7 +350,7 @@ export function Challenges() {
                                             onClick={() => setTimeframe(t as any)}
                                             className={clsx(
                                                 "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                                                timeframe === t ? "bg-primary text-black" : "bg-white/5 text-text-muted"
+                                                timeframe === t ? "bg-primary text-white" : "bg-white/5 text-text-muted"
                                             )}
                                         >
                                             {t}
@@ -367,6 +387,53 @@ export function Challenges() {
                                         </div>
                                     )}
                                 </div>
+                            </motion.div>
+                        )}
+                        {activeTab === 'history' && (
+                            <motion.div key="history-grid" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+                                {history.length > 0 ? history.map((challenge, i) => (
+                                    <motion.div
+                                        key={challenge.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: i * 0.05 }}
+                                        className="bg-surface rounded-3xl p-5 border border-white/5 shadow-xl"
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <h3 className="font-black uppercase tracking-tight text-sm">{challenge.title}</h3>
+                                                <p className="text-xs text-text-muted mt-1">{challenge.description}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-black">{challenge.myEntry?.finalRank ? `#${challenge.myEntry.finalRank}` : '-'}</div>
+                                                <div className="text-[9px] text-text-muted font-bold uppercase tracking-widest">Classement</div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )) : (
+                                    <div className="bg-surface border border-white/5 rounded-3xl p-8 text-center">
+                                        <p className="text-text-muted text-sm font-bold uppercase tracking-widest">Aucun historique</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                        {activeTab === 'leaderboard' && (
+                            <motion.div key="leaderboard-grid" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+                                {leaderboard.length > 0 ? leaderboard.map((entry, i) => (
+                                    <div key={entry.userId || i} className="bg-surface rounded-3xl p-4 border border-white/5 shadow-xl flex items-center gap-4">
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center font-black text-xs">
+                                            {entry.rank || i + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-black text-sm uppercase tracking-tight truncate">{entry.displayName || entry.username || 'Inconnu'}</div>
+                                            <div className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{(entry.totalDistanceM / 1000 || 0).toFixed(1)} km</div>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="bg-surface border border-white/5 rounded-3xl p-8 text-center">
+                                        <p className="text-text-muted text-sm font-bold uppercase tracking-widest">Aucun classement disponible</p>
+                                    </div>
+                                )}
                             </motion.div>
                         )}
                     </AnimatePresence>

@@ -11,7 +11,7 @@ interface Notification {
     type: string;
     title: string;
     body: string;
-    isRead: boolean;
+    isRead: boolean;   // mapped from backend's `read` field
     createdAt: string;
 }
 
@@ -54,7 +54,18 @@ export function Notifications() {
     const fetchNotifications = async () => {
         try {
             const res = await api.get('/notifications');
-            setNotifications(Array.isArray(res.data) ? res.data : []);
+            // Backend returns { notifications: [...], unreadCount: N, hasMore: bool }
+            const raw = res.data?.notifications ?? res.data;
+            const list = Array.isArray(raw) ? raw : [];
+            // Map backend `read` -> frontend `isRead`
+            setNotifications(list.map((n: any) => ({
+                id: n.id,
+                type: n.type,
+                title: n.title,
+                body: n.body,
+                isRead: n.read ?? n.isRead ?? false,
+                createdAt: n.createdAt ?? n.created_at,
+            })));
         } catch (error) {
             console.error('Failed to fetch notifications', error);
         } finally {
