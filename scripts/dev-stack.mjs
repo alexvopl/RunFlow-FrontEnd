@@ -6,14 +6,28 @@ import path from 'node:path';
 const frontendDir = process.cwd();
 const backendDir = resolveBackendDir();
 const backendApiDir = path.join(backendDir, 'apps', 'api');
+const frontendFileEnv = loadEnvFile(frontendDir);
+const frontendBaseEnv = {
+  ...frontendFileEnv,
+  ...process.env,
+};
 
-const frontendPort = process.env.FRONTEND_PORT ?? '5173';
+const frontendPort =
+  process.env.FRONTEND_PORT ??
+  frontendBaseEnv.VITE_DEV_PORT ??
+  getPortFromUrl(frontendBaseEnv.VITE_APP_URL) ??
+  '5173';
 const backendPort = process.env.BACKEND_PORT ?? '3000';
 const lanIp = process.env.RUNFLOW_HOST_IP ?? getLocalIp() ?? '127.0.0.1';
 
 const frontendOrigin = `http://${lanIp}:${frontendPort}`;
+const frontendPublicUrl = frontendBaseEnv.VITE_APP_URL ?? frontendOrigin;
+const authRedirectUrl = frontendBaseEnv.VITE_AUTH_REDIRECT_URL ?? `${frontendPublicUrl}/auth/callback`;
+const passwordResetUrl = frontendBaseEnv.VITE_PASSWORD_RESET_URL ?? `${frontendPublicUrl}/reset-password`;
 const backendOrigin = `http://${lanIp}:${backendPort}`;
 const backendApiUrl = `${backendOrigin}/api`;
+const localFrontendUrl = `http://localhost:${frontendPort}`;
+const localBackendApiUrl = `http://localhost:${backendPort}/api`;
 
 const backendEnvPath = resolveBackendEnvPath();
 const dryRun = process.argv.includes('--dry-run');
@@ -30,11 +44,10 @@ if (!backendEnvPath) {
   fail(
     [
       'No backend env file found.',
-      `Expected one of:`,
+      'Expected:',
       `- ${path.join(backendApiDir, '.env.local')}`,
-      `- ${path.join(backendDir, '.env.local')}`,
-      `- ${path.join(backendDir, '_env.local')}`,
       '',
+      'This repo now standardizes on apps/api/.env.local only.',
       'Set RUNFLOW_BACKEND_ENV_FILE to override this.',
     ].join('\n')
   );
@@ -44,15 +57,22 @@ const backendEnv = {
   ...process.env,
   DOTENV_PATH: backendEnvPath,
   PORT: backendPort,
-  FRONTEND_URL: frontendOrigin,
+  FRONTEND_URL: frontendPublicUrl,
+  AUTH_REDIRECT_URL_DEFAULT: authRedirectUrl,
+  PASSWORD_RESET_URL_DEFAULT: passwordResetUrl,
   API_URL: backendOrigin,
-  STRAVA_REDIRECT_URI: `${frontendOrigin}/strava/callback`,
-  ALLOWED_ORIGINS: mergeOrigins(process.env.ALLOWED_ORIGINS, frontendOrigin),
+  STRAVA_REDIRECT_URI: `${frontendPublicUrl.replace(/\/+$/, '')}/strava/callback`,
+  ALLOWED_ORIGINS: mergeOrigins(frontendBaseEnv.ALLOWED_ORIGINS ?? process.env.ALLOWED_ORIGINS, frontendOrigin),
 };
 
 const frontendEnv = {
+  ...frontendFileEnv,
   ...process.env,
-  VITE_API_URL: process.env.VITE_API_URL ?? backendApiUrl,
+  VITE_API_URL: frontendBaseEnv.VITE_API_URL ?? backendApiUrl,
+  VITE_APP_URL: frontendPublicUrl,
+  VITE_AUTH_REDIRECT_URL: authRedirectUrl,
+  VITE_PASSWORD_RESET_URL: passwordResetUrl,
+  VITE_DEV_PORT: frontendBaseEnv.VITE_DEV_PORT ?? frontendPort,
   VITE_DEV_HOST: lanIp,
   NO_COLOR: '1',
   FORCE_COLOR: '0',
@@ -80,7 +100,7 @@ const backend = spawn('pnpm', ['dev'], {
 children.push(backend);
 pipeOutput(backend, 'backend');
 
-const frontend = spawn('npm', ['run', 'dev', '--', '--clearScreen', 'false'], {
+const frontend = spawn('npm', ['run', 'dev', '--', '--port', frontendPort, '--clearScreen', 'false'], {
   cwd: frontendDir,
   env: frontendEnv,
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -148,13 +168,67 @@ function getLocalIp() {
   return null;
 }
 
+function getPortFromUrl(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.port || null;
+  } catch {
+    return null;
+  }
+}
+
+function loadEnvFile(baseDir) {
+  const candidates = [
+    path.join(baseDir, '.env.local'),
+    path.join(baseDir, '.env'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return parseEnvFile(candidate);
+    }
+  }
+
+  return {};
+}
+
+function parseEnvFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const parsed = {};
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    let value = line.slice(separatorIndex + 1).trim();
+
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    parsed[key] = value;
+  }
+
+  return parsed;
+}
+
 function resolveBackendEnvPath() {
   const explicit = process.env.RUNFLOW_BACKEND_ENV_FILE;
   const candidates = [
     explicit ? path.resolve(explicit) : null,
     path.join(backendApiDir, '.env.local'),
-    path.join(backendDir, '.env.local'),
-    path.join(backendDir, '_env.local'),
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -187,8 +261,8 @@ function resolveBackendDir() {
 
 function mergeOrigins(existingOrigins, requiredOrigin) {
   const origins = new Set([
-    'http://localhost:5173',
-    'http://localhost:3000',
+    `http://localhost:${frontendPort}`,
+    `http://127.0.0.1:${frontendPort}`,
     requiredOrigin,
   ]);
 
@@ -207,17 +281,20 @@ function printPlan() {
   console.log('RunFlow local stack');
   console.log(`- backend dir: ${backendDir}`);
   console.log(`- backend env: ${backendEnvPath}`);
-  console.log(`- backend api: ${backendApiUrl}`);
-  console.log(`- frontend url: ${frontendOrigin}`);
+  console.log(`- backend api local: ${localBackendApiUrl}`);
+  console.log(`- backend api network: ${backendApiUrl}`);
+  console.log(`- frontend local: ${localFrontendUrl}`);
+  console.log(`- frontend public: ${frontendPublicUrl}`);
   console.log(`- phone url: ${frontendOrigin}`);
   console.log('');
   console.log('Open on phone:');
   console.log(`  ${frontendOrigin}`);
   console.log('');
   console.log('Useful local URLs:');
-  console.log(`  frontend: ${frontendOrigin}`);
-  console.log(`  backend:  ${backendApiUrl}`);
-  console.log(`  docs:     ${backendOrigin}/docs`);
+  console.log(`  frontend local:  ${localFrontendUrl}`);
+  console.log(`  backend local:   ${localBackendApiUrl}`);
+  console.log(`  backend network: ${backendApiUrl}`);
+  console.log(`  docs local:      http://localhost:${backendPort}/docs`);
   console.log('');
 }
 

@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios';
 import { Link } from 'react-router-dom';
 import { Mail, Loader2, AlertCircle, CheckCircle, ChevronLeft } from 'lucide-react';
 import { api } from '../../services/api';
+import { PASSWORD_RESET_URL } from '../../services/app-config';
 
 export function ForgotPassword() {
     const [email, setEmail] = useState('');
@@ -15,7 +16,10 @@ export function ForgotPassword() {
         setError('');
         setLoading(true);
         try {
-            await api.post('/auth/recover', { email });
+            await api.post('/auth/recover', {
+                email,
+                redirectTo: PASSWORD_RESET_URL ?? undefined,
+            });
             setSuccess(true);
         } catch (err: unknown) {
             const message = isAxiosError<{ message?: string }>(err)
