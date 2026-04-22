@@ -10,13 +10,13 @@ interface PlanGeneratorProps {
 export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState(() => ({
         goal: 'half_marathon', // marathon, half_marathon, 10k, 5k — must match backend enum
         durationWeeks: 12,
         sessionsPerWeek: 4,
         targetDate: new Date(Date.now() + 12 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         currentWeeklyKm: 30
-    });
+    }));
     const [preview, setPreview] = useState<any>(null);
 
     const handleNext = () => {

@@ -14,12 +14,6 @@ export function SocialModal({ isOpen, onClose, title }: SocialModalProps) {
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        if (!isOpen) return;
-        // Load initial results when modal opens
-        searchUsers('');
-    }, [isOpen]);
-
     const searchUsers = async (q: string) => {
         setLoading(true);
         try {
@@ -32,6 +26,11 @@ export function SocialModal({ isOpen, onClose, title }: SocialModalProps) {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!isOpen) return;
+        void searchUsers('');
+    }, [isOpen]);
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;

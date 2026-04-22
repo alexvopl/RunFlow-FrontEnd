@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isAxiosError } from 'axios';
 import { Link } from 'react-router-dom';
 import { Mail, Loader2, AlertCircle, CheckCircle, ChevronLeft } from 'lucide-react';
 import { api } from '../../services/api';
@@ -16,8 +17,11 @@ export function ForgotPassword() {
         try {
             await api.post('/auth/recover', { email });
             setSuccess(true);
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Une erreur est survenue. Vérifiez votre email.');
+        } catch (err: unknown) {
+            const message = isAxiosError<{ message?: string }>(err)
+                ? err.response?.data?.message
+                : undefined;
+            setError(message || 'Une erreur est survenue. Vérifiez votre email.');
         } finally {
             setLoading(false);
         }

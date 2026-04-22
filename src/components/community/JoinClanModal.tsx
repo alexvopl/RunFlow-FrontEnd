@@ -14,12 +14,6 @@ export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps)
     const [joiningId, setJoiningId] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchClans();
-        }
-    }, [isOpen]);
-
     const fetchClans = async () => {
         setLoading(true);
         setErrorMessage(null);
@@ -33,6 +27,12 @@ export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps)
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (isOpen) {
+            void fetchClans();
+        }
+    }, [isOpen]);
 
     const handleJoin = async (clanId: string) => {
         setJoiningId(clanId);

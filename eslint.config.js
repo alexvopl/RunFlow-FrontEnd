@@ -25,4 +25,10 @@ export default defineConfig([
       'react-refresh/only-export-components': 'off',
     },
   },
+  {
+    files: ['src/services/**/*.{ts,tsx}', 'src/contexts/**/*.{ts,tsx}', 'src/pages/auth/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+    },
+  },
 ])

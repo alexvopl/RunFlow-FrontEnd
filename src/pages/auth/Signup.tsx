@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, AlertCircle, Check } from 'lucide-react';
@@ -25,9 +26,12 @@ export function Signup() {
         try {
             await signup(email, password, acceptTerms);
             navigate('/');
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setError(err.response?.data?.message || 'Failed to create account');
+            const message = isAxiosError<{ message?: string }>(err)
+                ? err.response?.data?.message
+                : undefined;
+            setError(message || 'Failed to create account');
         } finally {
             setLoading(false);
         }

@@ -19,13 +19,54 @@ interface AuthContextType {
     logout: () => void;
 }
 
+interface AuthUserPayload {
+    userId?: string;
+    id?: string;
+    email?: string;
+    name?: string;
+    trophies?: number;
+    followersCount?: number;
+    followingCount?: number;
+}
+
+interface ProfilePayload {
+    id?: string;
+    email?: string;
+    display_name?: string;
+    username?: string;
+    trophies?: number;
+    followers_count?: number;
+    following_count?: number;
+}
+
+interface ProfileResponse {
+    profile?: ProfilePayload | null;
+}
+
+interface AuthResponse {
+    access_token: string;
+    refresh_token?: string;
+    user: AuthUserPayload;
+}
+
+const isProfileResponse = (payload: ProfileResponse | ProfilePayload): payload is ProfileResponse =>
+    Object.prototype.hasOwnProperty.call(payload, 'profile');
+
+const extractProfile = (payload: ProfileResponse | ProfilePayload | null): ProfilePayload | null => {
+    if (!payload) {
+        return null;
+    }
+
+    return isProfileResponse(payload) ? payload.profile ?? null : payload;
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const mapUser = (authData: any, profileData?: any): User => ({
+    const mapUser = (authData: AuthUserPayload | null | undefined, profileData?: ProfilePayload | null): User => ({
         id: authData?.userId ?? authData?.id ?? profileData?.id ?? '',
         email: authData?.email ?? profileData?.email ?? '',
         name: profileData?.display_name ?? profileData?.username ?? authData?.name,
@@ -44,10 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             try {
                 const [whoamiRes, profileRes] = await Promise.all([
-                    api.get('/auth/whoami'),
-                    api.get('/profiles/me').catch(() => ({ data: null }))
+                    api.get<AuthUserPayload>('/auth/whoami'),
+                    api.get<ProfileResponse | ProfilePayload>('/profiles/me').catch(() => ({ data: null }))
                 ]);
-                const profile = profileRes.data?.profile ?? profileRes.data ?? null;
+                const profile = extractProfile(profileRes.data);
                 setUser(mapUser(whoamiRes.data, profile));
             } catch (error) {
                 console.error('Failed to fetch user profile:', error);
@@ -62,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const login = async (email: string, password: string) => {
-        const response = await api.post('/auth/login', { email, password });
+        const response = await api.post<AuthResponse>('/auth/login', { email, password });
         const { access_token, refresh_token, user } = response.data;
 
         setTokens(access_token, refresh_token);
@@ -70,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const signup = async (email: string, password: string, acceptTerms: boolean) => {
-        const response = await api.post('/auth/signup', { email, password, acceptTerms });
+        const response = await api.post<AuthResponse>('/auth/signup', { email, password, acceptTerms });
         const { access_token, refresh_token, user } = response.data;
 
         setTokens(access_token, refresh_token);
@@ -78,12 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const logout = () => {
-        // Optional: Call logout endpoint
-        api.post('/auth/logout').catch(err => console.error('Logout API error', err));
-
+        void api.post('/auth/logout').catch(err => console.error('Logout API error', err));
         clearTokens();
         setUser(null);
-        window.location.href = '/login';
     };
 
     return (

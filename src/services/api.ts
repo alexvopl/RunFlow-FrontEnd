@@ -1,72 +1,150 @@
-import axios from 'axios';
+import axios, {
+    AxiosHeaders,
+    type AxiosError,
+    type InternalAxiosRequestConfig,
+} from 'axios';
 
-// Default to local IP for simulator testing if environment variable is not set
-const API_URL = import.meta.env.VITE_API_URL || 'http://10.113.229.159:3000/api';
+const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
+
+if (!rawApiUrl) {
+    throw new Error('Missing VITE_API_URL. Add it to your environment before starting the app.');
+}
+
+const API_URL = rawApiUrl.replace(/\/+$/, '');
+
+const ACCESS_TOKEN_KEY = 'runflow_access_token';
+
+let inMemoryAccessToken: string | null = null;
+let inMemoryRefreshToken: string | null = null;
+
+interface TokenResponse {
+    access_token?: string;
+    refresh_token?: string;
+}
+
+interface RetriableRequestConfig extends InternalAxiosRequestConfig {
+    _retry?: boolean;
+}
+
+const isBrowser = typeof window !== 'undefined';
+
+const readSessionStorage = (key: string) => {
+    if (!isBrowser) {
+        return null;
+    }
+
+    try {
+        return window.sessionStorage.getItem(key);
+    } catch {
+        return null;
+    }
+};
+
+const writeSessionStorage = (key: string, value: string | null) => {
+    if (!isBrowser) {
+        return;
+    }
+
+    try {
+        if (value === null) {
+            window.sessionStorage.removeItem(key);
+            return;
+        }
+
+        window.sessionStorage.setItem(key, value);
+    } catch {
+        // Ignore storage write failures and keep the in-memory token only.
+    }
+};
+
+const setAuthorizationHeader = (config: InternalAxiosRequestConfig, token: string) => {
+    const headers = config.headers instanceof AxiosHeaders
+        ? config.headers
+        : new AxiosHeaders(config.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    config.headers = headers;
+};
+
+const setAccessToken = (token: string | null) => {
+    inMemoryAccessToken = token;
+    writeSessionStorage(ACCESS_TOKEN_KEY, token);
+};
+
+const setRefreshToken = (token: string | null) => {
+    inMemoryRefreshToken = token;
+};
+
+export const getAccessToken = () => {
+    if (inMemoryAccessToken) {
+        return inMemoryAccessToken;
+    }
+
+    const storedToken = readSessionStorage(ACCESS_TOKEN_KEY);
+    if (storedToken) {
+        inMemoryAccessToken = storedToken;
+    }
+
+    return storedToken;
+};
 
 export const api = axios.create({
     baseURL: API_URL,
     timeout: 10000,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
-// Storage keys
-const ACCESS_TOKEN_KEY = 'runflow_access_token';
-const REFRESH_TOKEN_KEY = 'runflow_refresh_token';
-
-// Request interceptor to add access token
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+        const token = getAccessToken();
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            setAuthorizationHeader(config, token);
         }
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle token refresh
 api.interceptors.response.use(
     (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
+    async (error: AxiosError) => {
+        const originalRequest = error.config as RetriableRequestConfig | undefined;
+        const requestUrl = originalRequest?.url ?? '';
+        const isRefreshRequest = requestUrl.includes('/auth/refresh');
 
-        // If error is 401 and we haven't tried to refresh yet
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
             originalRequest._retry = true;
 
             try {
-                const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+                const refreshPayload = inMemoryRefreshToken
+                    ? { refresh_token: inMemoryRefreshToken }
+                    : {};
 
-                if (!refreshToken) {
-                    throw new Error('No refresh token available');
-                }
-
-                // Call refresh endpoint
-                const response = await axios.post(`${API_URL}/auth/refresh`, {
-                    refresh_token: refreshToken,
-                });
+                const response = await axios.post<TokenResponse>(
+                    `${API_URL}/auth/refresh`,
+                    refreshPayload,
+                    {
+                        withCredentials: true,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
 
                 const { access_token, refresh_token } = response.data;
 
-                // Update storage
-                localStorage.setItem(ACCESS_TOKEN_KEY, access_token);
-                if (refresh_token) {
-                    localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
+                if (!access_token) {
+                    throw new Error('Refresh response did not include an access token.');
                 }
 
-                // Update authorization header and retry original request
-                api.defaults.headers.common.Authorization = `Bearer ${access_token}`;
-                originalRequest.headers.Authorization = `Bearer ${access_token}`;
+                setTokens(access_token, refresh_token);
+                setAuthorizationHeader(originalRequest, access_token);
 
                 return api(originalRequest);
             } catch (refreshError) {
-                // If refresh fails, clear tokens and redirect to login (handled by AuthContext or Router)
-                localStorage.removeItem(ACCESS_TOKEN_KEY);
-                localStorage.removeItem(REFRESH_TOKEN_KEY);
-                window.location.href = '/login';
+                clearTokens();
                 return Promise.reject(refreshError);
             }
         }
@@ -75,14 +153,12 @@ api.interceptors.response.use(
     }
 );
 
-export const setTokens = (accessToken: string, refreshToken: string) => {
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+export const setTokens = (accessToken: string, refreshToken?: string) => {
+    setAccessToken(accessToken);
+    setRefreshToken(refreshToken ?? null);
 };
 
 export const clearTokens = () => {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    setAccessToken(null);
+    setRefreshToken(null);
 };
-
-export const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
