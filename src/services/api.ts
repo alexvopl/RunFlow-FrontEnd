@@ -74,6 +74,15 @@ const setRefreshToken = (token: string | null) => {
     inMemoryRefreshToken = token;
 };
 
+const normalizeToken = (token?: string | null) => {
+    if (typeof token !== 'string') {
+        return null;
+    }
+
+    const trimmedToken = token.trim();
+    return trimmedToken.length > 0 ? trimmedToken : null;
+};
+
 export const getAccessToken = () => {
     if (inMemoryAccessToken) {
         return inMemoryAccessToken;
@@ -115,12 +124,15 @@ api.interceptors.response.use(
         const isRefreshRequest = requestUrl.includes('/auth/refresh');
 
         if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
+            if (!inMemoryRefreshToken) {
+                clearTokens();
+                return Promise.reject(error);
+            }
+
             originalRequest._retry = true;
 
             try {
-                const refreshPayload = inMemoryRefreshToken
-                    ? { refresh_token: inMemoryRefreshToken }
-                    : {};
+                const refreshPayload = { refresh_token: inMemoryRefreshToken };
 
                 const response = await axios.post<TokenResponse>(
                     `${API_URL}/auth/refresh`,
@@ -154,8 +166,16 @@ api.interceptors.response.use(
 );
 
 export const setTokens = (accessToken: string, refreshToken?: string) => {
-    setAccessToken(accessToken);
-    setRefreshToken(refreshToken ?? null);
+    const normalizedAccessToken = normalizeToken(accessToken);
+    const normalizedRefreshToken = normalizeToken(refreshToken);
+
+    if (!normalizedAccessToken) {
+        clearTokens();
+        return;
+    }
+
+    setAccessToken(normalizedAccessToken);
+    setRefreshToken(normalizedRefreshToken);
 };
 
 export const clearTokens = () => {

@@ -2,6 +2,38 @@
 
 Frontend React + TypeScript + Vite pour RunFlow.
 
+## Full Stack Dev
+
+Une seule commande lance le backend local et le frontend avec hot reload :
+
+```bash
+npm run dev:stack
+```
+
+Le script :
+
+- cherche le backend dans `../RunFlow_pro_backend`
+- charge en priorité `apps/api/.env.local`, sinon `.env.local`, sinon `_env.local`
+- installe automatiquement les dépendances manquantes du frontend et du backend
+- injecte `FRONTEND_URL`, `ALLOWED_ORIGINS`, `API_URL` et `STRAVA_REDIRECT_URI` côté backend
+- injecte `VITE_API_URL` côté frontend
+- garde l'URL téléphone visible en haut du terminal
+- préfixe les logs avec `frontend` et `backend` sans effacer l'écran
+
+Commande de vérification sans lancer les serveurs :
+
+```bash
+npm run dev:stack:check
+```
+
+Variables optionnelles :
+
+- `RUNFLOW_BACKEND_DIR` pour changer le chemin du backend
+- `RUNFLOW_BACKEND_ENV_FILE` pour forcer un fichier d'env backend
+- `RUNFLOW_HOST_IP` pour forcer l'IP locale affichée et utilisée
+- `BACKEND_PORT` et `FRONTEND_PORT` pour changer les ports
+- `RUNFLOW_SKIP_INSTALL=1` pour désactiver l'installation automatique des dépendances
+
 ## Prerequisites
 
 - Node.js 20+

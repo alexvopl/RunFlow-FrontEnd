@@ -1,5 +1,10 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { api, setTokens, clearTokens, getAccessToken } from '../services/api';
+import {
+    resolveAuthSession,
+    type AuthResponsePayload,
+    type AuthUserPayload,
+} from '../services/auth-session';
 
 interface User {
     id: string;
@@ -15,19 +20,13 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
-    signup: (email: string, password: string, acceptTerms: boolean) => Promise<void>;
+    signup: (email: string, password: string, acceptTerms: boolean) => Promise<SignupResult>;
     logout: () => void;
 }
 
-interface AuthUserPayload {
-    userId?: string;
-    id?: string;
-    email?: string;
-    name?: string;
-    trophies?: number;
-    followersCount?: number;
-    followingCount?: number;
-}
+type SignupResult =
+    | { status: 'authenticated' }
+    | { status: 'pending_confirmation'; email: string };
 
 interface ProfilePayload {
     id?: string;
@@ -41,12 +40,6 @@ interface ProfilePayload {
 
 interface ProfileResponse {
     profile?: ProfilePayload | null;
-}
-
-interface AuthResponse {
-    access_token: string;
-    refresh_token?: string;
-    user: AuthUserPayload;
 }
 
 const isProfileResponse = (payload: ProfileResponse | ProfilePayload): payload is ProfileResponse =>
@@ -103,23 +96,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const login = async (email: string, password: string) => {
-        const response = await api.post<AuthResponse>('/auth/login', { email, password });
-        const { access_token, refresh_token, user } = response.data;
+        const response = await api.post<AuthResponsePayload>('/auth/login', { email, password });
+        const { accessToken, refreshToken, user } = resolveAuthSession(response.data);
 
-        setTokens(access_token, refresh_token);
+        if (!accessToken || !user) {
+            throw new Error('Login response did not include a valid authenticated session.');
+        }
+
+        setTokens(accessToken, refreshToken ?? undefined);
         setUser(mapUser(user));
     };
 
-    const signup = async (email: string, password: string, acceptTerms: boolean) => {
-        const response = await api.post<AuthResponse>('/auth/signup', { email, password, acceptTerms });
-        const { access_token, refresh_token, user } = response.data;
+    const signup = async (email: string, password: string, acceptTerms: boolean): Promise<SignupResult> => {
+        const response = await api.post<AuthResponsePayload>('/auth/signup', { email, password, acceptTerms });
+        const { accessToken, refreshToken, user, requiresEmailConfirmation } = resolveAuthSession(response.data);
 
-        setTokens(access_token, refresh_token);
+        if (!accessToken || !user || requiresEmailConfirmation) {
+            clearTokens();
+            setUser(null);
+            return { status: 'pending_confirmation', email };
+        }
+
+        setTokens(accessToken, refreshToken ?? undefined);
         setUser(mapUser(user));
+        return { status: 'authenticated' };
     };
 
     const logout = () => {
-        void api.post('/auth/logout').catch(err => console.error('Logout API error', err));
+        const accessToken = getAccessToken();
+        const logoutRequest = accessToken
+            ? api.post('/auth/logout', undefined, {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            })
+            : Promise.resolve();
+
+        void logoutRequest.catch(err => console.error('Logout API error', err));
         clearTokens();
         setUser(null);
     };
