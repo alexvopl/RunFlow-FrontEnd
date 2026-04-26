@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, addDays, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, ChevronRight, Flag, Plus, Loader2, MessageSquare, Calendar as CalendarIcon, Zap, Trash2, X, TrendingUp, BarChart2 } from 'lucide-react';
+import { Play, ChevronRight, Flag, Plus, Loader2, MessageSquare, Calendar as CalendarIcon, Trash2, X, TrendingUp, BarChart2, Zap, Target } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../services/api';
 import { PlanGeneratorWizard } from '../components/training/PlanGeneratorWizard';
@@ -32,12 +32,8 @@ export function Training() {
     const checkAdaptation = useCallback(async (planId: string) => {
         try {
             const res = await api.get(`/training/plans/${planId}/adaptation`);
-            if (res.data.recommended) {
-                setAdaptationRecommended(res.data);
-            }
-        } catch (error) {
-            console.error('Failed to check adaptation', error);
-        }
+            if (res.data.recommended) setAdaptationRecommended(res.data);
+        } catch { /* silent */ }
     }, []);
 
     const fetchPlan = useCallback(async () => {
@@ -81,11 +77,8 @@ export function Training() {
             } else {
                 setActivePlan(null);
             }
-        } catch (error) {
-            console.error('Failed to fetch plans', error);
-        } finally {
-            setLoading(false);
-        }
+        } catch { /* silent */ }
+        finally { setLoading(false); }
     }, [checkAdaptation]);
 
     const handleAdaptation = async (accept: boolean) => {
@@ -94,9 +87,7 @@ export function Training() {
             await api.post(`/training/plans/${activePlan.id}/adapt`, { accept });
             setAdaptationRecommended(null);
             if (accept) fetchPlan();
-        } catch (error) {
-            console.error('Failed to handle adaptation', error);
-        }
+        } catch { /* silent */ }
     };
 
     const deletePlan = async () => {
@@ -108,23 +99,20 @@ export function Training() {
             setShowDeleteConfirm(false);
             setAdaptationRecommended(null);
             await fetchPlan();
-        } catch (error) {
-            console.error('Failed to delete plan', error);
+        } catch {
             setDeleteError("Impossible de supprimer ce plan pour le moment.");
         } finally {
             setDeletingPlan(false);
         }
     };
 
-    useEffect(() => {
-        fetchPlan();
-    }, [fetchPlan]);
+    useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
     const dates = Array.from({ length: 14 }).map((_, i) => addDays(new Date(), i));
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center">
                 <Loader2 className="animate-spin text-primary" size={28} />
             </div>
         );
@@ -132,20 +120,21 @@ export function Training() {
 
     if (!activePlan && !showWizard) {
         return (
-            <div className="runna-screen px-4 pb-24 min-h-screen flex flex-col items-center justify-center text-center gap-8">
-                <div className="w-20 h-20 rounded-[24px] bg-primary/10 border border-primary/20 flex items-center justify-center">
-                    <Flag size={28} className="text-primary" />
-                </div>
-                <div className="max-w-xs">
-                    <h1 className="text-2xl font-black tracking-tight text-white mb-2">Aucun plan actif</h1>
-                    <p className="text-text-muted text-sm leading-relaxed">Crée un programme structuré et motivant pour retrouver ton cadre d'entraînement.</p>
-                </div>
-                <button
-                    onClick={() => setShowWizard(true)}
-                    className="btn-primary w-full max-w-xs text-xs uppercase tracking-widest"
+            <div className="min-h-screen px-5 pb-28 flex flex-col items-center justify-center text-center gap-8">
+                <motion.div
+                    initial={{ scale: 0.85, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                    className="glass-hero w-24 h-24 rounded-[28px] flex items-center justify-center"
                 >
-                    <Plus size={16} />
-                    Créer mon plan
+                    <Flag size={32} className="text-primary" />
+                </motion.div>
+                <div className="max-w-xs">
+                    <h1 className="text-2xl font-black tracking-tight text-white mb-2">Pas encore de plan</h1>
+                    <p className="text-text-muted text-sm leading-relaxed">Lance-toi ! Crée ton programme sur-mesure et commence à courir avec un vrai objectif.</p>
+                </div>
+                <button onClick={() => setShowWizard(true)} className="btn-primary w-full max-w-xs text-sm">
+                    <Plus size={18} /> Créer mon plan
                 </button>
             </div>
         );
@@ -153,10 +142,10 @@ export function Training() {
 
     if (showWizard) {
         return (
-            <div className="runna-screen px-4 pb-24 min-h-screen">
-                <header className="pt-6 mb-8">
-                    <h1 className="text-2xl font-black tracking-tight text-white">Nouveau plan</h1>
-                    <p className="text-text-muted text-sm mt-1">Un programme structuré, séance par séance.</p>
+            <div className="min-h-screen px-5 pb-28">
+                <header className="pt-8 mb-8">
+                    <h1 className="text-2xl font-black tracking-tight">Nouveau plan</h1>
+                    <p className="text-text-muted text-sm mt-1">Un programme sur-mesure, séance par séance.</p>
                 </header>
                 <PlanGeneratorWizard onPlanGenerated={() => { setShowWizard(false); fetchPlan(); }} />
             </div>
@@ -171,10 +160,10 @@ export function Training() {
     const totalWeeks = Math.max(1, Math.ceil((targetDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)));
     const currentWeek = Math.max(1, Math.min(totalWeeks, Math.ceil((new Date().getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000))));
     const progressPct = Math.round((currentWeek / totalWeeks) * 100);
-    const goalLabel = GOAL_LABELS[activePlan.goal?.toLowerCase()] || activePlan.goal || 'Objectif Final';
+    const goalLabel = GOAL_LABELS[activePlan.goal?.toLowerCase()] || activePlan.goal || 'Objectif';
 
     return (
-        <div className="runna-screen pb-24">
+        <div className="pb-28">
             <FeedbackModal
                 isOpen={showFeedback}
                 onClose={() => setShowFeedback(false)}
@@ -184,44 +173,31 @@ export function Training() {
                 workoutType={selectedWorkout?.type || 'easy_run'}
             />
 
-            {/* Delete Plan Modal */}
+            {/* Delete Modal */}
             <AnimatePresence>
                 {showDeleteConfirm && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[60] flex items-end justify-center"
-                    >
-                        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-end justify-center">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
                         <motion.div
-                            initial={{ y: 24, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: 24, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                            className="relative w-full max-w-md bg-surface border border-white/10 rounded-t-[32px] p-6 pb-10"
+                            initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+                            className="relative w-full max-w-md glass-card rounded-t-[36px] p-6 pb-10"
                         >
                             <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-6" />
-                            <div className="flex items-center justify-center w-14 h-14 bg-red-500/10 rounded-2xl mx-auto mb-4 border border-red-500/20">
-                                <Trash2 size={24} className="text-red-500" />
+                            <div className="w-14 h-14 rounded-2xl bg-red-500/12 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+                                <Trash2 size={24} className="text-red-400" />
                             </div>
-                            <h3 className="text-lg font-black tracking-tight text-center mb-2">Supprimer le plan ?</h3>
-                            <p className="text-text-muted text-sm text-center leading-relaxed mb-6">Cette action est irréversible. Ton plan d'entraînement sera définitivement supprimé.</p>
-                            {deleteError && (
-                                <p className="text-red-400 text-xs text-center font-semibold mb-4">{deleteError}</p>
-                            )}
+                            <h3 className="text-lg font-black text-center mb-2">Supprimer le plan ?</h3>
+                            <p className="text-text-muted text-sm text-center leading-relaxed mb-6">Cette action est irréversible. Ton programme sera définitivement supprimé.</p>
+                            {deleteError && <p className="text-red-400 text-xs text-center font-semibold mb-4">{deleteError}</p>}
                             <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeleteConfirm(false)}
-                                    className="flex-1 py-3.5 bg-white/6 text-sm font-bold rounded-2xl hover:bg-white/10 transition-colors border border-white/8"
-                                >
+                                <button onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 py-3.5 rounded-full text-sm font-bold border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
                                     Annuler
                                 </button>
-                                <button
-                                    onClick={deletePlan}
-                                    disabled={deletingPlan}
-                                    className="flex-1 py-3.5 bg-red-500 text-white text-sm font-bold rounded-2xl hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
+                                <button onClick={deletePlan} disabled={deletingPlan}
+                                    className="flex-1 py-3.5 rounded-full bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                                     {deletingPlan ? <Loader2 size={14} className="animate-spin" /> : 'Supprimer'}
                                 </button>
                             </div>
@@ -233,54 +209,44 @@ export function Training() {
             {/* Goal Detail Modal */}
             <AnimatePresence>
                 {showGoalModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[60] flex items-end justify-center"
-                    >
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowGoalModal(false)} />
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-end justify-center">
+                        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowGoalModal(false)} />
                         <motion.div
-                            initial={{ y: 24, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: 24, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                            className="relative w-full max-w-md bg-surface border border-white/10 rounded-t-[32px] p-6 pb-10"
+                            initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+                            className="relative w-full max-w-md glass-hero rounded-t-[36px] p-6 pb-10"
                         >
                             <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-6" />
                             <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-lg font-black tracking-tight">Objectif Final</h3>
-                                <button onClick={() => setShowGoalModal(false)} className="w-8 h-8 flex items-center justify-center hover:bg-white/5 rounded-full transition-colors">
-                                    <X size={18} className="text-text-muted" />
+                                <div>
+                                    <p className="text-[10px] font-bold text-primary/80 uppercase tracking-widest mb-0.5">Plan actif</p>
+                                    <h3 className="text-xl font-black tracking-tight">{goalLabel}</h3>
+                                </div>
+                                <button onClick={() => setShowGoalModal(false)} className="w-9 h-9 flex items-center justify-center glass-card rounded-full">
+                                    <X size={16} className="text-text-muted" />
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 gap-3 mb-5">
-                                <div className="bg-background rounded-2xl p-4 border border-white/6">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">Objectif</div>
-                                    <div className="text-base font-black text-primary">{goalLabel}</div>
-                                </div>
-                                <div className="bg-background rounded-2xl p-4 border border-white/6">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">Date cible</div>
-                                    <div className="text-sm font-black">
-                                        {activePlan.targetDate ? format(new Date(activePlan.targetDate), 'dd MMM yyyy', { locale: fr }) : '—'}
+                                {[
+                                    { label: 'Date cible', value: activePlan.targetDate ? format(new Date(activePlan.targetDate), 'd MMM yyyy', { locale: fr }) : '—' },
+                                    { label: 'Distance totale', value: `${activePlan.totalDistance || 0} km` },
+                                    { label: 'Semaine en cours', value: `${currentWeek} / ${totalWeeks}` },
+                                    { label: 'Avancement', value: `${progressPct}%` },
+                                ].map((stat) => (
+                                    <div key={stat.label} className="glass-card rounded-2xl p-4">
+                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">{stat.label}</div>
+                                        <div className="text-base font-black text-white">{stat.value}</div>
                                     </div>
-                                </div>
-                                <div className="bg-background rounded-2xl p-4 border border-white/6">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">Progression</div>
-                                    <div className="text-base font-black">Sem. {currentWeek}<span className="text-text-muted text-sm font-medium">/{totalWeeks}</span></div>
-                                </div>
-                                <div className="bg-background rounded-2xl p-4 border border-white/6">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">Distance totale</div>
-                                    <div className="text-base font-black">{activePlan.totalDistance || 0}<span className="text-text-muted text-sm font-medium"> km</span></div>
-                                </div>
+                                ))}
                             </div>
                             <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs text-text-muted font-medium">Avancement du plan</span>
-                                    <span className="text-xs font-black text-primary">{progressPct}%</span>
+                                <div className="flex justify-between text-xs mb-2">
+                                    <span className="text-text-muted font-medium">Progression</span>
+                                    <span className="text-primary font-bold">{progressPct}%</span>
                                 </div>
-                                <div className="h-2 bg-white/8 rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+                                <div className="xp-track">
+                                    <div className="xp-fill" style={{ width: `${progressPct}%` }} />
                                 </div>
                             </div>
                         </motion.div>
@@ -288,93 +254,84 @@ export function Training() {
                 )}
             </AnimatePresence>
 
-            <div className="px-4 space-y-6 pt-6">
+            <div className="px-5 space-y-6 pt-7">
 
                 {/* Header */}
-                <header>
-                    <h1 className="text-2xl font-black tracking-tight text-white">Entraînement</h1>
-                    <p className="text-text-muted text-sm mt-1">Semaine {currentWeek} sur {totalWeeks}</p>
+                <header className="flex items-start justify-between">
+                    <div>
+                        <h1 className="text-[1.7rem] font-black tracking-tight leading-tight text-white">Entraînement</h1>
+                        <p className="text-text-muted text-sm mt-0.5">Semaine {currentWeek} · {totalWeeks - currentWeek} semaines restantes</p>
+                    </div>
+                    <div className="glass-card rounded-2xl px-3 py-2 flex items-center gap-1.5">
+                        <Zap size={13} className="text-primary" />
+                        <span className="text-xs font-black text-white">Sem. {currentWeek}</span>
+                    </div>
                 </header>
 
-                {/* Hero Plan Card */}
-                <div className="plan-hero-card rounded-[28px] p-5">
+                {/* Glass Hero */}
+                <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                    className="glass-hero rounded-[32px] p-6"
+                >
                     <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1 pr-4">
-                            <div className="rf-tag mb-2">Bloc actif</div>
-                            <h2 className="text-xl font-black leading-tight tracking-tight text-white">{goalLabel}</h2>
-                            <p className="text-text-muted text-xs mt-1 font-medium">
-                                Objectif : <span className="text-white">
-                                    {activePlan.targetDate ? format(new Date(activePlan.targetDate), 'dd MMM yyyy', { locale: fr }) : '—'}
-                                </span>
+                        <div className="flex-1 pr-3">
+                            <div className="rf-tag mb-2.5">
+                                <Target size={9} /> Bloc actif
+                            </div>
+                            <h2 className="text-2xl font-black leading-tight tracking-tight text-white">{goalLabel}</h2>
+                            <p className="text-sm text-text-muted mt-1">
+                                {activePlan.targetDate
+                                    ? format(new Date(activePlan.targetDate), "d MMMM yyyy", { locale: fr })
+                                    : 'Date non définie'}
                             </p>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                            <div className="text-2xl font-black text-white">{currentWeek}</div>
-                            <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest">/ {totalWeeks} sem.</div>
+                        <div className="glass-card rounded-2xl px-3 py-2 text-center flex-shrink-0">
+                            <div className="text-lg font-black text-white leading-none">{progressPct}%</div>
+                            <div className="text-[8px] text-text-muted font-bold uppercase tracking-wide mt-0.5">complété</div>
                         </div>
                     </div>
 
-                    {/* Progress bar */}
-                    <div className="mb-4">
-                        <div className="flex gap-1">
-                            {Array.from({ length: totalWeeks }).map((_, i) => (
-                                <div key={i} className={clsx(
-                                    'h-1 flex-1 rounded-full transition-all',
-                                    i < currentWeek - 1 ? 'bg-primary' :
-                                    i === currentWeek - 1 ? 'bg-primary/70' :
-                                    'bg-white/10'
-                                )} />
-                            ))}
+                    {/* XP bar */}
+                    <div className="mb-1.5">
+                        <div className="xp-track">
+                            <div className="xp-fill" style={{ width: `${progressPct}%` }} />
                         </div>
                     </div>
-
-                    {/* Stats row */}
-                    <div className="flex items-center justify-between pt-2 border-t border-white/8 mb-3">
-                        <div>
-                            <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-0.5">Distance totale</div>
-                            <div className="text-lg font-black text-white">{activePlan.totalDistance || 0} <span className="text-xs font-bold text-text-muted">KM</span></div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-0.5">Avancement</div>
-                            <div className="text-lg font-black text-primary">{progressPct}%</div>
-                        </div>
+                    <div className="flex justify-between text-[10px] font-bold text-text-muted mb-5">
+                        <span>Semaine {currentWeek} sur {totalWeeks}</span>
+                        <span className="text-primary">{activePlan.totalDistance || 0} km au total</span>
                     </div>
 
-                    {/* Objectif Final row */}
+                    {/* Objectif button */}
                     <button
                         onClick={() => setShowGoalModal(true)}
-                        className="w-full py-3 flex items-center justify-between border-t border-white/8 hover:bg-white/4 rounded-b-xl transition-colors group"
+                        className="w-full flex items-center justify-between py-2.5 border-t border-white/10 group"
                     >
                         <span className="flex items-center gap-2 text-xs font-bold text-text-muted group-hover:text-white transition-colors">
                             <Flag size={13} className="text-primary" />
                             Voir les détails du plan
                         </span>
-                        <ChevronRight size={13} className="text-text-muted group-hover:text-white transition-colors" />
+                        <ChevronRight size={14} className="text-text-muted/40 group-hover:text-white transition-colors" />
                     </button>
-                </div>
+                </motion.div>
 
                 {/* Adaptation banner */}
                 {adaptationRecommended && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="runna-card rounded-[24px] p-5 border-l-2 border-primary"
-                    >
-                        <h3 className="text-sm font-black text-primary mb-1">Adaptation recommandée</h3>
-                        <p className="text-xs text-text-muted mb-4 leading-relaxed">
-                            {adaptationRecommended.reason || "Nous avons détecté que ta progression nécessite un ajustement."}
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        className="glass-card rounded-[24px] p-5 border-l-2 border-primary">
+                        <p className="text-xs font-black text-primary mb-1">Adaptation recommandée</p>
+                        <p className="text-sm text-text-muted leading-relaxed mb-4">
+                            {adaptationRecommended.reason || "Ta progression nécessite un léger ajustement du plan."}
                         </p>
                         <div className="flex gap-2">
-                            <button
-                                onClick={() => handleAdaptation(true)}
-                                className="px-5 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-colors"
-                            >
+                            <button onClick={() => handleAdaptation(true)}
+                                className="px-5 py-2 bg-primary text-white text-xs font-bold rounded-full hover:bg-primary/90 transition-colors">
                                 Accepter
                             </button>
-                            <button
-                                onClick={() => handleAdaptation(false)}
-                                className="px-5 py-2 bg-white/6 text-xs font-bold rounded-xl hover:bg-white/10 transition-colors border border-white/8"
-                            >
+                            <button onClick={() => handleAdaptation(false)}
+                                className="btn-ghost-pill text-xs">
                                 Ignorer
                             </button>
                         </div>
@@ -384,28 +341,24 @@ export function Training() {
                 {/* Action buttons */}
                 <div className="grid grid-cols-3 gap-2.5">
                     {[
-                        { icon: BarChart2, label: 'Résumé', action: () => navigate('/activities'), variant: 'default' },
-                        { icon: TrendingUp, label: 'Strava', action: () => navigate('/profile'), variant: 'default' },
-                        { icon: Trash2, label: 'Supprimer', action: () => setShowDeleteConfirm(true), variant: 'danger' },
+                        { icon: BarChart2, label: 'Résumé', action: () => navigate('/activities') },
+                        { icon: TrendingUp, label: 'Strava', action: () => navigate('/profile') },
+                        { icon: Trash2, label: 'Supprimer', action: () => setShowDeleteConfirm(true), danger: true },
                     ].map((item, i) => (
-                        <button
-                            key={i}
-                            onClick={item.action}
-                            className={clsx(
-                                'rf-action-btn',
-                                item.variant === 'danger' ? 'rf-action-btn-danger' : ''
-                            )}
-                        >
-                            <item.icon size={18} />
-                            <span>{item.label}</span>
+                        <button key={i} onClick={item.action}
+                            className={clsx('rf-action-btn', item.danger && 'rf-action-btn-danger')}>
+                            <div className="w-9 h-9 rounded-2xl bg-white/6 flex items-center justify-center">
+                                <item.icon size={17} />
+                            </div>
+                            <span className="text-[10px] font-bold">{item.label}</span>
                         </button>
                     ))}
                 </div>
 
-                {/* Weekly calendar */}
+                {/* Calendar strip */}
                 <div>
-                    <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Programme</h3>
-                    <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 -mx-4 px-4">
+                    <h3 className="text-sm font-bold text-text-muted mb-3">Programme</h3>
+                    <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 -mx-5 px-5">
                         {dates.map((date, i) => {
                             const isSelected = isSameDay(date, selectedDate);
                             const isToday = isSameDay(date, new Date());
@@ -415,24 +368,24 @@ export function Training() {
                                     key={i}
                                     onClick={() => setSelectedDate(date)}
                                     className={clsx(
-                                        'flex flex-col items-center min-w-[3.5rem] py-3 rounded-2xl border transition-all duration-200 relative',
-                                        isSelected
-                                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25'
-                                            : 'bg-surface border-white/6 text-text-muted hover:bg-white/5'
+                                        'day-pill flex-shrink-0',
+                                        isSelected ? 'day-pill-active text-white' : 'text-text-muted'
                                     )}
                                 >
                                     <span className="text-[9px] font-bold uppercase tracking-wide mb-1">
                                         {format(date, 'EEE', { locale: fr })}
                                     </span>
-                                    <span className={clsx('text-base font-black', isToday && !isSelected && 'text-primary')}>
+                                    <span className={clsx(
+                                        'text-sm font-black',
+                                        isToday && !isSelected ? 'text-primary' : ''
+                                    )}>
                                         {format(date, 'd')}
                                     </span>
-                                    {hasWorkout && (
-                                        <div className={clsx(
-                                            'w-1 h-1 rounded-full mt-1',
-                                            isSelected ? 'bg-white/60' : 'bg-primary'
-                                        )} />
-                                    )}
+                                    <div className={clsx(
+                                        'w-1.5 h-1.5 rounded-full mt-1 transition-opacity',
+                                        hasWorkout ? 'opacity-100' : 'opacity-0',
+                                        isSelected ? 'bg-white/70' : 'bg-primary'
+                                    )} />
                                 </button>
                             );
                         })}
@@ -442,36 +395,34 @@ export function Training() {
                         {selectedWorkout ? (
                             <motion.div
                                 key={selectedWorkout.id}
-                                initial={{ opacity: 0, y: 8 }}
+                                initial={{ opacity: 0, y: 12 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0 }}
-                                className="bg-surface border border-white/6 rounded-3xl p-5 mt-4"
+                                className="glass-mission rounded-[28px] p-5 mt-4"
                             >
                                 <div className="flex justify-between items-start mb-4">
-                                    <div className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[9px] font-bold uppercase tracking-widest">
-                                        {isSameDay(selectedDate, new Date()) ? "Aujourd'hui" : format(selectedDate, 'dd MMM', { locale: fr })}
+                                    <div className="rf-tag">
+                                        {isSameDay(selectedDate, new Date()) ? "Aujourd'hui" : format(selectedDate, 'EEEE d MMM', { locale: fr })}
                                     </div>
-                                    <button
-                                        onClick={() => setShowFeedback(true)}
-                                        className="p-2 bg-white/5 rounded-xl hover:bg-white/10 text-text-muted transition-colors"
-                                    >
-                                        <MessageSquare size={16} />
+                                    <button onClick={() => setShowFeedback(true)}
+                                        className="glass-card w-9 h-9 flex items-center justify-center rounded-2xl text-text-muted hover:text-white transition-colors">
+                                        <MessageSquare size={15} />
                                     </button>
                                 </div>
 
-                                <h2 className="text-lg font-black tracking-tight mb-1.5">{selectedWorkout.title}</h2>
+                                <h2 className="text-xl font-black tracking-tight mb-2">{selectedWorkout.title}</h2>
                                 <p className="text-text-muted text-sm leading-relaxed mb-5">{selectedWorkout.description}</p>
 
                                 <div className="flex gap-6 mb-6">
                                     {selectedWorkout.durationMinutes && (
                                         <div>
-                                            <div className="text-2xl font-black">{selectedWorkout.durationMinutes} <span className="text-xs font-bold text-text-muted">MIN</span></div>
+                                            <div className="text-2xl font-black">{selectedWorkout.durationMinutes}<span className="text-xs font-bold text-text-muted ml-1">min</span></div>
                                             <div className="text-[9px] text-text-muted uppercase font-bold tracking-widest mt-0.5">Durée</div>
                                         </div>
                                     )}
                                     {selectedWorkout.distanceKm && (
                                         <div>
-                                            <div className="text-2xl font-black">{selectedWorkout.distanceKm} <span className="text-xs font-bold text-text-muted">KM</span></div>
+                                            <div className="text-2xl font-black">{selectedWorkout.distanceKm}<span className="text-xs font-bold text-text-muted ml-1">km</span></div>
                                             <div className="text-[9px] text-text-muted uppercase font-bold tracking-widest mt-0.5">Distance</div>
                                         </div>
                                     )}
@@ -479,27 +430,31 @@ export function Training() {
 
                                 <button
                                     onClick={() => navigate('/workout', {
-                                        state: {
-                                            workout: {
-                                                title: selectedWorkout.title,
-                                                description: selectedWorkout.description,
-                                                distanceKm: selectedWorkout.distanceKm,
-                                                durationMinutes: selectedWorkout.durationMinutes,
-                                                workoutId: selectedWorkout.id
-                                            }
-                                        }
+                                        state: { workout: {
+                                            title: selectedWorkout.title,
+                                            description: selectedWorkout.description,
+                                            distanceKm: selectedWorkout.distanceKm,
+                                            durationMinutes: selectedWorkout.durationMinutes,
+                                            workoutId: selectedWorkout.id
+                                        }}
                                     })}
-                                    className="w-full py-4 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
+                                    className="w-full py-4 bg-primary text-white font-black text-sm rounded-full flex items-center justify-center gap-2.5 active:scale-[0.97] transition-all"
+                                    style={{ boxShadow: '0 8px 28px rgba(90,178,255,0.38), inset 0 1px 0 rgba(255,255,255,0.25)' }}
                                 >
-                                    <Play size={16} fill="currentColor" />
+                                    <Play size={17} fill="currentColor" />
                                     Lancer la séance
                                 </button>
                             </motion.div>
                         ) : (
-                            <div className="bg-surface border border-white/6 border-dashed rounded-3xl p-10 text-center mt-4">
-                                <CalendarIcon size={32} className="text-text-muted/20 mx-auto mb-3" />
-                                <p className="text-text-muted text-xs font-bold uppercase tracking-widest">Repos</p>
-                            </div>
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="glass-card rounded-[28px] p-10 text-center mt-4 border-dashed"
+                            >
+                                <CalendarIcon size={28} className="text-text-muted/30 mx-auto mb-3" />
+                                <p className="text-text-muted text-sm font-bold">Jour de repos</p>
+                                <p className="text-text-muted/50 text-xs mt-1">Profites-en pour récupérer 🙌</p>
+                            </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
