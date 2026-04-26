@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export function Login() {
     const [email, setEmail] = useState('');
@@ -24,76 +25,99 @@ export function Login() {
             const message = isAxiosError<{ message?: string }>(err)
                 ? err.response?.data?.message
                 : undefined;
-            setError(message || 'Failed to login');
+            setError(message || 'Identifiants incorrects. Réessaie.');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-sm space-y-8">
-                <div className="text-center">
-                    <h1 className="text-4xl font-black italic uppercase tracking-tighter mb-2">RunFlow</h1>
-                    <p className="text-text-muted">Enter your credentials to continue</p>
+        <div className="min-h-screen flex flex-col items-center justify-center p-5">
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="w-full max-w-sm"
+            >
+                {/* Logo */}
+                <div className="text-center mb-8">
+                    <h1 className="text-[2.6rem] font-black italic tracking-tighter text-white leading-none">
+                        Run<span className="text-primary">Flow</span>
+                    </h1>
+                    <p className="text-text-muted text-sm mt-2">Connecte-toi pour continuer 👟</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Card */}
+                <div className="glass-hero rounded-[28px] p-6 space-y-5">
+
                     {error && (
-                        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-xl flex items-center gap-2 text-sm">
-                            <AlertCircle size={16} />
+                        <motion.div
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-2xl flex items-center gap-2.5 text-sm"
+                        >
+                            <AlertCircle size={15} className="flex-shrink-0" />
                             {error}
-                        </div>
+                        </motion.div>
                     )}
 
-                    <div className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-3.5">
+                        {/* Email */}
                         <div className="relative">
-                            <Mail className="absolute left-4 top-3.5 text-text-muted" size={20} />
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={17} />
                             <input
                                 type="email"
                                 placeholder="Email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-surface border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
+                                className="w-full glass-card rounded-2xl py-3.5 pl-11 pr-4 text-white text-sm placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
                                 required
                             />
                         </div>
+
+                        {/* Password */}
                         <div className="relative">
-                            <Lock className="absolute left-4 top-3.5 text-text-muted" size={20} />
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={17} />
                             <input
                                 type="password"
-                                placeholder="Password"
+                                placeholder="Mot de passe"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full bg-surface border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
+                                className="w-full glass-card rounded-2xl py-3.5 pl-11 pr-4 text-white text-sm placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
                                 required
                             />
                         </div>
-                    </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-primary text-black font-bold py-4 rounded-2xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign In'}
-                    </button>
-                </form>
+                        {/* Forgot password */}
+                        <div className="text-right">
+                            <Link
+                                to="/forgot-password"
+                                className="text-xs font-bold text-text-muted hover:text-primary transition-colors"
+                            >
+                                Mot de passe oublié ?
+                            </Link>
+                        </div>
 
-                <div className="text-center text-sm text-text-muted space-y-2">
-                    <div>
-                        <Link to="/forgot-password" className="text-primary/70 font-bold hover:text-primary hover:underline transition-colors">
-                            Mot de passe oublié ?
-                        </Link>
-                    </div>
-                    <div>
-                        Don't have an account?{' '}
-                        <Link to="/signup" className="text-primary font-bold hover:underline">
-                            Sign Up
-                        </Link>
-                    </div>
+                        {/* Submit */}
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="btn-primary w-full py-3.5 text-sm font-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
+                        >
+                            {loading ? <Loader2 className="animate-spin" size={18} /> : 'Se connecter'}
+                        </button>
+                    </form>
                 </div>
-            </div>
+
+                {/* Sign up link */}
+                <p className="text-center text-sm text-text-muted mt-6">
+                    Pas encore de compte ?{' '}
+                    <Link to="/signup" className="text-primary font-black hover:underline">
+                        S'inscrire
+                    </Link>
+                </p>
+            </motion.div>
         </div>
     );
 }
