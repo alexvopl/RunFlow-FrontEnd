@@ -120,7 +120,7 @@ export function Training() {
 
     if (!activePlan && !showWizard) {
         return (
-            <div className="min-h-screen px-5 pb-28 flex flex-col items-center justify-center text-center gap-8">
+            <div className="min-h-screen px-5 pb-28 flex flex-col items-center justify-center text-center gap-6">
                 <motion.div
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -133,9 +133,18 @@ export function Training() {
                     <h1 className="text-2xl font-black tracking-tight text-white mb-2">Pas encore de plan</h1>
                     <p className="text-text-muted text-sm leading-relaxed">Lance-toi ! Crée ton programme sur-mesure et commence à courir avec un vrai objectif.</p>
                 </div>
-                <button onClick={() => setShowWizard(true)} className="btn-primary w-full max-w-xs text-sm">
-                    <Plus size={18} /> Créer mon plan
-                </button>
+                <div className="w-full max-w-xs flex flex-col gap-3">
+                    <button onClick={() => setShowWizard(true)} className="btn-primary w-full text-sm">
+                        <Plus size={18} /> Créer mon plan
+                    </button>
+                    <button
+                        onClick={() => navigate('/workout')}
+                        className="w-full py-3.5 rounded-full border border-white/10 bg-white/5 text-white text-sm font-black flex items-center justify-center gap-2 hover:bg-white/10 transition-colors active:scale-[0.97]"
+                    >
+                        <Play size={16} fill="currentColor" className="text-primary" />
+                        Lancer une course libre
+                    </button>
+                </div>
             </div>
         );
     }
@@ -338,21 +347,42 @@ export function Training() {
                     </motion.div>
                 )}
 
-                {/* Action buttons */}
-                <div className="grid grid-cols-3 gap-2.5">
-                    {[
-                        { icon: BarChart2, label: 'Résumé', action: () => navigate('/activities') },
-                        { icon: TrendingUp, label: 'Strava', action: () => navigate('/profile') },
-                        { icon: Trash2, label: 'Supprimer', action: () => setShowDeleteConfirm(true), danger: true },
-                    ].map((item, i) => (
-                        <button key={i} onClick={item.action}
-                            className={clsx('rf-action-btn', item.danger && 'rf-action-btn-danger')}>
-                            <div className="w-9 h-9 rounded-2xl bg-white/6 flex items-center justify-center">
-                                <item.icon size={17} />
-                            </div>
-                            <span className="text-[10px] font-bold">{item.label}</span>
-                        </button>
-                    ))}
+                {/* Quick actions */}
+                <div className="flex flex-col gap-2.5">
+                    {/* Free run CTA */}
+                    <motion.button
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        onClick={() => navigate('/workout')}
+                        className="w-full flex items-center gap-4 glass-card rounded-[22px] p-4 active:scale-[0.97] transition-all group"
+                    >
+                        <div className="w-11 h-11 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0 group-hover:bg-primary transition-all">
+                            <Play size={20} fill="currentColor" className="text-primary group-hover:text-white transition-colors" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="font-black text-sm text-white">Course libre</p>
+                            <p className="text-[11px] text-text-muted font-medium mt-0.5">Sans programme · GPS + stats en temps réel</p>
+                        </div>
+                        <ChevronRight size={16} className="text-text-muted/40 group-hover:text-primary transition-colors flex-shrink-0" />
+                    </motion.button>
+
+                    {/* Secondary action buttons */}
+                    <div className="grid grid-cols-3 gap-2.5">
+                        {[
+                            { icon: BarChart2, label: 'Résumé', action: () => navigate('/activities') },
+                            { icon: TrendingUp, label: 'Strava', action: () => navigate('/profile') },
+                            { icon: Trash2, label: 'Supprimer', action: () => setShowDeleteConfirm(true), danger: true },
+                        ].map((item, i) => (
+                            <button key={i} onClick={item.action}
+                                className={clsx('rf-action-btn', item.danger && 'rf-action-btn-danger')}>
+                                <div className="w-9 h-9 rounded-2xl bg-white/6 flex items-center justify-center">
+                                    <item.icon size={17} />
+                                </div>
+                                <span className="text-[10px] font-bold">{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Calendar strip */}
@@ -449,11 +479,18 @@ export function Training() {
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
-                                className="glass-card rounded-[28px] p-10 text-center mt-4 border-dashed"
+                                className="glass-card rounded-[28px] p-6 text-center mt-4"
                             >
-                                <CalendarIcon size={28} className="text-text-muted/30 mx-auto mb-3" />
+                                <CalendarIcon size={26} className="text-text-muted/30 mx-auto mb-2" />
                                 <p className="text-text-muted text-sm font-bold">Jour de repos</p>
-                                <p className="text-text-muted/50 text-xs mt-1">Profites-en pour récupérer 🙌</p>
+                                <p className="text-text-muted/50 text-xs mt-1 mb-5">Profites-en pour récupérer 🙌</p>
+                                <button
+                                    onClick={() => navigate('/workout')}
+                                    className="w-full py-3 rounded-full border border-white/10 bg-white/5 text-white text-xs font-black flex items-center justify-center gap-2 hover:bg-white/10 transition-colors active:scale-[0.97]"
+                                >
+                                    <Play size={13} fill="currentColor" className="text-primary" />
+                                    Lancer une course libre quand même
+                                </button>
                             </motion.div>
                         )}
                     </AnimatePresence>
