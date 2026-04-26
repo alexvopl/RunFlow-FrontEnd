@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Play, Pause, Square, ChevronLeft, MapPin,
     Zap, Heart, Activity, Volume2, VolumeX, Flag,
-    ChevronUp, ChevronDown, Minus
+    ChevronUp, ChevronDown, Minus, Loader2
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -107,6 +107,13 @@ export function LiveWorkout() {
     const accelRef = useRef<any>(null);
     const workoutStartRef = useRef<number | null>(null);
     const completedLapsRef = useRef<WorkoutLap[]>([]);
+    const distanceMRef = useRef(0);
+    const elapsedRef = useRef(0);
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'skipped' | 'error'>('idle');
+
+    // Sync state → refs so handleStop always reads the latest values
+    useEffect(() => { distanceMRef.current = distanceM; }, [distanceM]);
+    useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
 
     // Active segment
     const segments = guidedWorkout?.segments || null;
@@ -322,13 +329,15 @@ export function LiveWorkout() {
         setPhase('done');
         beep(880, 0.5);
 
-        // Save activity
-        if (distanceM > 50 && elapsed > 10) {
+        // Read final values from refs — avoids stale-closure race with React batching
+        const finalDistanceM = distanceMRef.current;
+        const finalElapsed = elapsedRef.current;
+
+        // Save any session that lasted more than 5 seconds (distance can be 0 on treadmill / GPS off)
+        if (finalElapsed > 5) {
+            setSaveState('saving');
             try {
-                const route = gpsPoints.current.map((point) => ({
-                    lat: point.lat,
-                    lng: point.lng,
-                }));
+                const route = gpsPoints.current.map((p) => ({ lat: p.lat, lng: p.lng }));
                 const splits = completedLapsRef.current.map((lap) => ({
                     kmNumber: lap.index,
                     splitTimeSec: lap.durationSeconds,
@@ -339,15 +348,21 @@ export function LiveWorkout() {
                     name: guidedWorkout?.title || 'Course libre',
                     activityType: 'run',
                     startedAt: new Date(workoutStartRef.current ?? Date.now()).toISOString(),
-                    distanceMeters: Math.round(distanceM),
-                    durationSeconds: elapsed,
+                    distanceMeters: Math.round(finalDistanceM),
+                    durationSeconds: finalElapsed,
                     source: 'manual',
                     route: route.length > 1 ? route : undefined,
                     splits: splits.length > 0 ? splits : undefined,
                 });
-            } catch (e) { console.error('Failed to save activity', e); }
+                setSaveState('saved');
+            } catch (e) {
+                console.error('Failed to save activity', e);
+                setSaveState('error');
+            }
+        } else {
+            setSaveState('skipped');
         }
-    }, [stopGPS, stopAccelerometer, distanceM, elapsed, guidedWorkout, beep]);
+    }, [stopGPS, stopAccelerometer, guidedWorkout, beep]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -494,7 +509,15 @@ export function LiveWorkout() {
                     <Flag size={40} className="text-white" fill="currentColor" />
                 </motion.div>
                 <h1 className="text-3xl font-black uppercase tracking-tight mb-1">Bravo !</h1>
-                <p className="text-text-muted text-sm mb-8 font-medium">Séance terminée · Activité enregistrée</p>
+                <p className="text-text-muted text-sm mb-8 font-medium flex items-center justify-center gap-2">
+                    {saveState === 'saving' && (
+                        <><Loader2 size={14} className="animate-spin" /> Enregistrement en cours…</>
+                    )}
+                    {saveState === 'saved' && '✓ Activité enregistrée'}
+                    {saveState === 'error' && '⚠ Erreur — activité non enregistrée'}
+                    {saveState === 'skipped' && 'Séance terminée'}
+                    {saveState === 'idle' && 'Séance terminée'}
+                </p>
 
                 <div className="grid grid-cols-3 gap-4 w-full max-w-sm mb-10">
                     {[
