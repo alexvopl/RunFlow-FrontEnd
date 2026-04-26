@@ -11,9 +11,9 @@ export function Layout() {
             <AnimatePresence mode="wait">
                 <motion.main
                     key={location.pathname}
-                    initial={{ opacity: 0, y: isWorkout ? 0 : 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: isWorkout ? 0 : -8 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     transition={{ duration: isWorkout ? 0.15 : 0.22, ease: [0.25, 0.1, 0.25, 1.0] }}
                     className={isWorkout ? 'app-main' : 'app-main pb-32 pt-safe'}
                 >

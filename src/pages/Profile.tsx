@@ -86,7 +86,6 @@ export function Profile() {
             setStravaLoading(null);
             showToast('success', 'Compte Strava déconnecté.');
         } catch (error: any) {
-            // 404 means already disconnected — treat as success
             if (error?.response?.status === 404 || error?.response?.status === 204) {
                 setStravaStatus({ connected: false });
                 setStravaLoading(null);
@@ -99,28 +98,29 @@ export function Profile() {
         }
     };
 
-
     const displayName = user?.name || user?.email?.split('@')[0] || 'Utilisateur';
     const initials = displayName.slice(0, 2).toUpperCase();
 
     return (
-        <div className="min-h-screen pb-36">
-            {/* === Toast notification === */}
+        <div className="min-h-screen pb-36 runna-screen">
+
+            {/* Toast */}
             <AnimatePresence>
                 {toast && (
                     <motion.div
-                        initial={{ opacity: 0, y: -60 }}
+                        initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -60 }}
+                        exit={{ opacity: 0, y: -20 }}
                         className="fixed top-4 inset-x-4 z-[100] max-w-sm mx-auto pointer-events-none"
                     >
-                        <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border backdrop-blur-lg ${toast.type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
-                            toast.type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
-                                'bg-white/10 border-white/10 text-white'
-                            }`}>
-                            {toast.type === 'success' && <Check size={16} className="flex-shrink-0" />}
-                            {toast.type === 'error' && <AlertCircle size={16} className="flex-shrink-0" />}
-                            {toast.type === 'loading' && <Loader2 size={16} className="animate-spin flex-shrink-0" />}
+                        <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border ${
+                            toast.type === 'success' ? 'bg-green-500/15 border-green-500/25 text-green-400' :
+                            toast.type === 'error' ? 'bg-red-500/15 border-red-500/25 text-red-400' :
+                            'bg-white/8 border-white/10 text-white'
+                        }`}>
+                            {toast.type === 'success' && <Check size={15} className="flex-shrink-0" />}
+                            {toast.type === 'error' && <AlertCircle size={15} className="flex-shrink-0" />}
+                            {toast.type === 'loading' && <Loader2 size={15} className="animate-spin flex-shrink-0" />}
                             <span className="text-sm font-bold">{toast.message}</span>
                         </div>
                     </motion.div>
@@ -129,124 +129,119 @@ export function Profile() {
 
             <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} />
 
-            <div className="px-4 pt-4">
-                {/* === Header === */}
-                <div className="flex justify-between items-start mb-8">
-                    <div>
-                        <p className="page-eyebrow mb-2">Mon profil</p>
-                        <h1 className="page-title">Profil</h1>
-                    </div>
-                    <div className="flex gap-1">
-                        <Link to="/notifications" className="relative p-2.5 hover:bg-white/5 rounded-xl transition-colors">
-                            <Bell size={20} className="text-text-muted" />
+            <div className="px-4 pt-6 space-y-6">
+
+                {/* Header */}
+                <div className="flex justify-between items-center">
+                    <h1 className="text-2xl font-black tracking-tight text-white">Profil</h1>
+                    <div className="flex gap-1.5">
+                        <Link to="/notifications" className="relative w-10 h-10 flex items-center justify-center bg-white/5 border border-white/8 rounded-2xl hover:bg-white/10 transition-colors">
+                            <Bell size={18} className="text-text-muted" />
                             {unreadCount > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                                <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-primary text-white text-[8px] font-black rounded-full flex items-center justify-center">
                                     {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
                             )}
                         </Link>
                         <button
                             onClick={() => setIsEditModalOpen(true)}
-                            className="p-2.5 hover:bg-white/5 rounded-xl transition-colors"
+                            className="w-10 h-10 flex items-center justify-center bg-white/5 border border-white/8 rounded-2xl hover:bg-white/10 transition-colors"
                         >
-                            <Settings size={20} className="text-text-muted" />
+                            <Settings size={18} className="text-text-muted" />
                         </button>
                     </div>
                 </div>
 
-                {/* === Avatar + Identity === */}
-                <div className="hero-panel flex flex-col items-center mb-8 p-6 sm:p-8">
+                {/* Avatar + Identity */}
+                <div className="plan-hero-card rounded-[28px] p-6 flex flex-col items-center text-center">
                     <div className="relative mb-4">
-                        <div className="w-24 h-24 rounded-[28px] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-2xl shadow-primary/10">
-                            <span className="text-3xl font-black text-gradient">{initials}</span>
+                        <div className="w-20 h-20 rounded-[22px] bg-primary/10 border border-primary/20 flex items-center justify-center">
+                            <span className="text-2xl font-black text-gradient">{initials}</span>
                         </div>
                         <button
                             onClick={() => setIsEditModalOpen(true)}
-                            className="absolute -bottom-2 -right-2 w-8 h-8 bg-surface border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors shadow-lg"
+                            className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-surface border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors"
                         >
-                            <Settings size={14} className="text-text-muted" />
+                            <Settings size={12} className="text-text-muted" />
                         </button>
                     </div>
 
-                    <h2 className="text-2xl font-black uppercase tracking-tight mb-0.5">{displayName}</h2>
-                    <p className="text-text-muted text-xs font-medium mb-4">{user?.email}</p>
+                    <h2 className="text-xl font-black tracking-tight mb-0.5">{displayName}</h2>
+                    <p className="text-text-muted text-xs font-medium mb-5">{user?.email}</p>
 
-                    {/* Social stats */}
-                    <div className="flex items-center gap-5 sm:gap-8 mb-5">
-                        <button onClick={() => setSocialModal({ isOpen: true, title: 'Abonnés' })} className="flex flex-col items-center group">
-                            <span className="text-xl font-black leading-none group-hover:text-primary transition-colors">{user?.followersCount || 0}</span>
-                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest mt-0.5">Abonnés</span>
+                    <div className="flex items-center gap-8 mb-5">
+                        <button onClick={() => setSocialModal({ isOpen: true, title: 'Abonnés' })} className="flex flex-col items-center gap-0.5 group">
+                            <span className="text-xl font-black group-hover:text-primary transition-colors">{user?.followersCount || 0}</span>
+                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">Abonnés</span>
                         </button>
-                        <div className="w-px h-8 bg-white/[0.08]" />
-                        <button onClick={() => setSocialModal({ isOpen: true, title: 'Abonnements' })} className="flex flex-col items-center group">
-                            <span className="text-xl font-black leading-none group-hover:text-primary transition-colors">{user?.followingCount || 0}</span>
-                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest mt-0.5">Abonnements</span>
+                        <div className="w-px h-8 bg-white/8" />
+                        <button onClick={() => setSocialModal({ isOpen: true, title: 'Abonnements' })} className="flex flex-col items-center gap-0.5 group">
+                            <span className="text-xl font-black group-hover:text-primary transition-colors">{user?.followingCount || 0}</span>
+                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">Abonnements</span>
                         </button>
-                        <div className="w-px h-8 bg-white/[0.08]" />
-                        <button onClick={() => setIsTrophyModalOpen(true)} className="flex flex-col items-center group">
-                            <span className="text-xl font-black leading-none text-amber-400 group-hover:text-amber-300 transition-colors">{user?.trophies || 0}</span>
-                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest mt-0.5">Trophées</span>
+                        <div className="w-px h-8 bg-white/8" />
+                        <button onClick={() => setIsTrophyModalOpen(true)} className="flex flex-col items-center gap-0.5 group">
+                            <span className="text-xl font-black text-amber-400 group-hover:text-amber-300 transition-colors">{user?.trophies || 0}</span>
+                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">Trophées</span>
                         </button>
                     </div>
 
                     <button
                         onClick={() => setIsEditModalOpen(true)}
-                        className="btn-ghost px-6 py-2.5 text-[10px] tracking-[0.15em]"
+                        className="btn-ghost px-5 py-2.5 text-xs"
                     >
                         Modifier le profil
                     </button>
                 </div>
 
-                {/* === Strava Connection Card === */}
-                <div className="mb-6">
-                    <h3 className="section-label">Connexions</h3>
-                    <div className={`premium-panel border overflow-hidden transition-all ${stravaStatus?.connected ? 'border-orange-500/20' : 'border-white/5'}`}>
-                        <div className="p-5">
-                            <div className="flex items-center gap-4">
-                                {/* Strava orange logo-like icon */}
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${stravaStatus?.connected ? 'bg-orange-500' : 'bg-white/5'}`}>
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill={stravaStatus?.connected ? 'white' : '#a1a1aa'}>
+                {/* Strava */}
+                <div>
+                    <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Connexions</h3>
+                    <div className={`runna-card rounded-[22px] border overflow-hidden transition-all ${stravaStatus?.connected ? 'border-orange-500/20' : 'border-white/6'}`}>
+                        <div className="p-4">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${stravaStatus?.connected ? 'bg-orange-500' : 'bg-white/6 border border-white/8'}`}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill={stravaStatus?.connected ? 'white' : '#71717a'}>
                                         <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
                                     </svg>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-black text-sm uppercase tracking-tight">Strava</span>
+                                        <span className="font-black text-sm">Strava</span>
                                         {stravaStatus?.connected && (
-                                            <span className="px-1.5 py-0.5 bg-orange-500/10 text-orange-500 text-[9px] font-black rounded-md uppercase tracking-wider">Connecté</span>
+                                            <span className="px-1.5 py-0.5 bg-orange-500/10 text-orange-400 text-[8px] font-black rounded uppercase tracking-wide">Connecté</span>
                                         )}
                                     </div>
                                     <p className="text-[10px] text-text-muted font-medium mt-0.5">
                                         {stravaStatus?.connected
-                                            ? `Compte : ${stravaStatus.athlete?.firstname || ''} ${stravaStatus.athlete?.lastname || ''}`.trim() || 'Compte associé'
+                                            ? `${stravaStatus.athlete?.firstname || ''} ${stravaStatus.athlete?.lastname || ''}`.trim() || 'Compte associé'
                                             : 'Synchronise tes activités automatiquement'}
                                     </p>
                                 </div>
-
                                 {stravaStatus?.connected ? (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
                                         <button
                                             onClick={handleStravaSync}
                                             disabled={!!stravaLoading}
-                                            className="w-9 h-9 flex items-center justify-center bg-orange-500/10 text-orange-500 rounded-xl hover:bg-orange-500/20 transition-colors disabled:opacity-50"
+                                            className="w-9 h-9 flex items-center justify-center bg-orange-500/10 text-orange-400 rounded-xl hover:bg-orange-500/20 transition-colors disabled:opacity-50"
                                         >
-                                            {stravaLoading === 'sync' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                            {stravaLoading === 'sync' ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                                         </button>
                                         <button
                                             onClick={handleStravaDisconnect}
                                             disabled={!!stravaLoading}
-                                            className="w-9 h-9 flex items-center justify-center bg-white/5 text-text-muted rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-colors disabled:opacity-50"
+                                            className="w-9 h-9 flex items-center justify-center bg-white/5 text-text-muted rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
                                         >
-                                            {stravaLoading === 'disconnect' ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}
+                                            {stravaLoading === 'disconnect' ? <Loader2 size={15} className="animate-spin" /> : <Unlink size={15} />}
                                         </button>
                                     </div>
                                 ) : (
                                     <button
                                         onClick={handleStravaConnect}
                                         disabled={!!stravaLoading}
-                                        className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-orange-600 active:scale-[0.97] transition-all disabled:opacity-50"
+                                        className="flex items-center gap-1.5 px-3.5 py-2 bg-orange-500 text-white text-xs font-bold rounded-xl hover:bg-orange-600 active:scale-[0.97] transition-all disabled:opacity-50"
                                     >
-                                        {stravaLoading === 'connect' ? <Loader2 size={14} className="animate-spin" /> : null}
+                                        {stravaLoading === 'connect' ? <Loader2 size={13} className="animate-spin" /> : null}
                                         Connecter
                                     </button>
                                 )}
@@ -255,55 +250,48 @@ export function Profile() {
                     </div>
                 </div>
 
-                {/* === Premium Banner === */}
-                <div className="hero-panel p-6 mb-6 relative overflow-hidden">
-                    <Crown size={80} className="absolute -bottom-3 -right-3 text-primary/6 rotate-12" />
-                    <div className="relative z-10">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/15 rounded-lg mb-3">
-                            <Crown size={12} className="text-primary" fill="currentColor" />
-                            <span className="text-[9px] font-black text-primary uppercase tracking-widest">Premium</span>
+                {/* Premium Banner */}
+                <div className="plan-hero-card rounded-[28px] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="rf-tag mb-3">Premium</div>
+                            <h3 className="font-black text-base tracking-tight mb-1.5">Passe au niveau supérieur</h3>
+                            <p className="text-xs text-text-muted leading-relaxed mb-4">Plans illimités, coaching IA avancé, analytics détaillés.</p>
+                            <button
+                                onClick={() => showToast('success', 'Fonctionnalité Premium bientôt disponible 🚀')}
+                                className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 active:scale-[0.97] transition-all"
+                            >
+                                S'abonner
+                            </button>
                         </div>
-                        <h3 className="font-black text-lg uppercase tracking-tight mb-2">Passez au niveau supérieur</h3>
-                        <p className="text-xs text-text-muted mb-4 leading-relaxed font-medium max-w-xs">
-                            Plans illimités, coaching IA avancé, analytics détaillés.
-                        </p>
-                        <button
-                            onClick={() => showToast('success', 'Fonctionnalité Premium bientôt disponible 🚀')}
-                            className="px-5 py-2.5 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary/90 active:scale-[0.97] transition-all shadow-lg shadow-primary/20"
-                        >
-                            S'abonner
-                        </button>
+                        <Crown size={40} className="text-primary/20 flex-shrink-0 mt-1" />
                     </div>
                 </div>
 
-                {/* === Settings Sections === */}
+                {/* Settings */}
                 <div className="space-y-5">
                     <div>
-                        <h3 className="section-label">Mon compte</h3>
-                        <div className="bg-surface rounded-3xl border border-white/5 overflow-hidden divide-y divide-white/5 shadow-lg">
+                        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Mon compte</h3>
+                        <div className="bg-surface rounded-[22px] border border-white/6 overflow-hidden divide-y divide-white/5">
                             {[
-                                { icon: Footprints, label: 'Mon équipement', path: null },
-                                { icon: ShoppingBag, label: 'Mes offres', path: null },
-                                { icon: Gift, label: 'Programme de parrainage', path: null },
+                                { icon: Footprints, label: 'Mon équipement' },
+                                { icon: ShoppingBag, label: 'Mes offres' },
+                                { icon: Gift, label: 'Programme de parrainage' },
                             ].map((item, i) => (
-                                <button
-                                    key={i}
-                                    disabled
-                                    className="w-full p-4 flex items-center gap-4 opacity-40 cursor-not-allowed text-left"
-                                >
+                                <div key={i} className="w-full p-4 flex items-center gap-3 opacity-40 cursor-not-allowed">
                                     <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted">
-                                        <item.icon size={18} />
+                                        <item.icon size={16} />
                                     </div>
                                     <span className="flex-1 text-sm font-bold">{item.label}</span>
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-text-muted border border-white/10 rounded-md px-1.5 py-0.5">Bientôt</span>
-                                </button>
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-text-muted border border-white/10 rounded px-1.5 py-0.5">Bientôt</span>
+                                </div>
                             ))}
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="section-label">Préférences</h3>
-                        <div className="bg-surface rounded-3xl border border-white/5 overflow-hidden divide-y divide-white/5 shadow-lg">
+                        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Préférences</h3>
+                        <div className="bg-surface rounded-[22px] border border-white/6 overflow-hidden divide-y divide-white/5">
                             {[
                                 { icon: Heart, label: 'Zones cardiaques', path: null },
                                 { icon: Smartphone, label: 'Apparence', path: null },
@@ -314,26 +302,22 @@ export function Profile() {
                                     <button
                                         key={i}
                                         onClick={() => navigate(item.path!)}
-                                        className="w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors group text-left"
+                                        className="w-full p-4 flex items-center gap-3 hover:bg-white/4 transition-colors group text-left"
                                     >
                                         <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted group-hover:text-white group-hover:bg-white/10 transition-colors">
-                                            <item.icon size={18} />
+                                            <item.icon size={16} />
                                         </div>
                                         <span className="flex-1 text-sm font-bold">{item.label}</span>
-                                        <ChevronRight size={16} className="text-text-muted/30 group-hover:text-text-muted transition-colors" />
+                                        <ChevronRight size={14} className="text-text-muted/30 group-hover:text-text-muted transition-colors" />
                                     </button>
                                 ) : (
-                                    <button
-                                        key={i}
-                                        disabled
-                                        className="w-full p-4 flex items-center gap-4 opacity-40 cursor-not-allowed text-left"
-                                    >
+                                    <div key={i} className="w-full p-4 flex items-center gap-3 opacity-40 cursor-not-allowed">
                                         <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted">
-                                            <item.icon size={18} />
+                                            <item.icon size={16} />
                                         </div>
                                         <span className="flex-1 text-sm font-bold">{item.label}</span>
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-text-muted border border-white/10 rounded-md px-1.5 py-0.5">Bientôt</span>
-                                    </button>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-text-muted border border-white/10 rounded px-1.5 py-0.5">Bientôt</span>
+                                    </div>
                                 )
                             ))}
                         </div>
@@ -341,15 +325,13 @@ export function Profile() {
 
                     <button
                         onClick={logout}
-                        className="w-full py-4 bg-red-500/5 text-red-500 border border-red-500/10 rounded-3xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all active:scale-[0.98] duration-200"
+                        className="w-full py-3.5 bg-red-500/6 text-red-400 border border-red-500/10 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all active:scale-[0.98]"
                     >
-                        <LogOut size={16} />
+                        <LogOut size={15} />
                         Se déconnecter
                     </button>
 
-                    <div className="text-center py-4 opacity-25">
-                        <span className="text-[9px] font-black uppercase tracking-widest">RunFlow v1.1.0 · Build 89</span>
-                    </div>
+                    <p className="text-center text-[9px] font-bold text-text-muted/25 uppercase tracking-widest pb-4">RunFlow v1.1.0</p>
                 </div>
             </div>
 
