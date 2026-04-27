@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Loader2, Activity as ActivityIcon, MapPin, Clock } from 'lucide-react';
+import { X, Loader2, Activity as ActivityIcon, MapPin, Clock, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
 
@@ -10,11 +10,11 @@ interface ManualActivityModalProps {
 }
 
 const ACTIVITY_TYPES = [
-    { value: 'run', label: 'Course' },
-    { value: 'trail', label: 'Trail' },
-    { value: 'walk', label: 'Marche' },
+    { value: 'run',     label: 'Course' },
+    { value: 'trail',   label: 'Trail' },
+    { value: 'walk',    label: 'Marche' },
     { value: 'cycling', label: 'Vélo' },
-    { value: 'hike', label: 'Rando' },
+    { value: 'hike',    label: 'Rando' },
 ];
 
 export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: ManualActivityModalProps) {
@@ -29,13 +29,17 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
         durationSec: '',
     });
 
+    const update = (key: keyof typeof formData, value: string) =>
+        setFormData(p => ({ ...p, [key]: value }));
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setLoading(true);
         try {
             const distanceMeters = Math.round(parseFloat(formData.distanceKm || '0') * 1000);
-            const durationSeconds = (parseInt(formData.durationMin || '0') * 60) + parseInt(formData.durationSec || '0');
+            const durationSeconds =
+                (parseInt(formData.durationMin || '0') * 60) + parseInt(formData.durationSec || '0');
 
             await api.post('/activities', {
                 name: formData.name,
@@ -46,7 +50,6 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
             });
             onActivityAdded();
             onClose();
-            // Reset form
             setFormData({
                 name: '',
                 activityType: 'run',
@@ -55,67 +58,81 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                 durationMin: '',
                 durationSec: '',
             });
-        } catch (error: any) {
-            setError(error.response?.data?.message || 'Échec de l\'enregistrement. Réessayez.');
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Échec de l\'enregistrement. Réessaie.');
         } finally {
             setLoading(false);
         }
     };
 
-    const update = (key: keyof typeof formData, value: string) => setFormData(p => ({ ...p, [key]: value }));
-
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center">
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                    />
-                    <motion.div
-                        initial={{ y: '100%' }}
-                        animate={{ y: 0 }}
-                        exit={{ y: '100%' }}
-                        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                        className="relative w-full max-w-lg bg-surface border-t border-x border-white/10 rounded-t-3xl p-6 shadow-2xl"
-                        style={{ paddingBottom: `calc(1.5rem + env(safe-area-inset-bottom))` }}
-                    >
-                        {/* Handle bar */}
-                        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-5" />
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[60] flex items-end justify-center"
+                >
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-                        <div className="flex justify-between items-center mb-6">
+                    {/* Sheet */}
+                    <motion.div
+                        initial={{ y: 40, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 40, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                        className="relative w-full max-w-lg glass-card rounded-t-[36px] p-5"
+                        style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+                    >
+                        {/* Handle */}
+                        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-5">
                             <div>
-                                <h2 className="text-lg font-black uppercase tracking-tight">Enregistrer</h2>
+                                <h2 className="text-lg font-black tracking-tight">Enregistrer</h2>
                                 <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold mt-0.5">Activité manuelle</p>
                             </div>
-                            <button onClick={onClose} className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors">
+                            <button
+                                onClick={onClose}
+                                className="w-9 h-9 glass-card rounded-2xl flex items-center justify-center text-text-muted hover:text-white transition-colors"
+                            >
                                 <X size={18} />
                             </button>
                         </div>
 
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-2xl text-xs font-bold mb-4">
+                            <motion.div
+                                initial={{ opacity: 0, y: -6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-2xl flex items-center gap-2.5 text-sm mb-4"
+                            >
+                                <AlertCircle size={15} className="flex-shrink-0" />
                                 {error}
-                            </div>
+                            </motion.div>
                         )}
 
-                        <form onSubmit={handleSubmit} className="space-y-5">
-                            {/* Activity type selector */}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+
+                            {/* Type */}
                             <div>
-                                <label className="text-[10px] font-black text-text-muted uppercase tracking-wider mb-2 block">Type</label>
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">Type</label>
                                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                                     {ACTIVITY_TYPES.map(t => (
                                         <button
                                             key={t.value}
                                             type="button"
                                             onClick={() => update('activityType', t.value)}
-                                            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${formData.activityType === t.value
-                                                    ? 'bg-primary text-black shadow-lg shadow-primary/20'
-                                                    : 'bg-white/5 text-text-muted hover:bg-white/10'
-                                                }`}
+                                            className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                                                formData.activityType === t.value
+                                                    ? 'bg-primary text-white'
+                                                    : 'glass-card text-text-muted hover:text-white'
+                                            }`}
+                                            style={formData.activityType === t.value
+                                                ? { boxShadow: '0 4px 14px rgba(90,178,255,0.3)' }
+                                                : {}}
                                         >
                                             {t.label}
                                         </button>
@@ -123,9 +140,9 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                 </div>
                             </div>
 
-                            {/* Name */}
+                            {/* Nom */}
                             <div>
-                                <label className="text-[10px] font-black text-text-muted uppercase tracking-wider mb-2 block">Nom</label>
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">Nom</label>
                                 <div className="relative">
                                     <ActivityIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
                                     <input
@@ -133,16 +150,16 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                         required
                                         value={formData.name}
                                         onChange={e => update('name', e.target.value)}
-                                        placeholder="Ex: Course matinale"
-                                        className="w-full bg-background border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm font-bold placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-colors"
+                                        placeholder="Ex : Course matinale"
+                                        className="w-full glass-card rounded-2xl py-3.5 pl-11 pr-4 text-sm font-bold placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
                                     />
                                 </div>
                             </div>
 
-                            {/* Distance + Duration side by side */}
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* Distance + Durée */}
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider mb-2 block">Distance (km)</label>
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">Distance (km)</label>
                                     <div className="relative">
                                         <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
                                         <input
@@ -153,15 +170,15 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                             value={formData.distanceKm}
                                             onChange={e => update('distanceKm', e.target.value)}
                                             placeholder="0.00"
-                                            className="w-full bg-background border border-white/10 rounded-2xl py-3 pl-10 pr-3 text-sm font-bold placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-colors"
+                                            className="w-full glass-card rounded-2xl py-3.5 pl-10 pr-3 text-sm font-bold placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider mb-2 block">Durée</label>
-                                    <div className="flex items-center gap-2">
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">Durée</label>
+                                    <div className="flex items-center gap-1.5">
                                         <div className="relative flex-1">
-                                            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                                            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={13} />
                                             <input
                                                 type="number"
                                                 min="0"
@@ -169,7 +186,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                                 value={formData.durationMin}
                                                 onChange={e => update('durationMin', e.target.value)}
                                                 placeholder="00"
-                                                className="w-full bg-background border border-white/10 rounded-2xl py-3 pl-9 pr-2 text-sm font-bold placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-colors"
+                                                className="w-full glass-card rounded-2xl py-3.5 pl-9 pr-2 text-sm font-bold placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
                                             />
                                         </div>
                                         <span className="text-text-muted font-black text-xs">:</span>
@@ -180,7 +197,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                             value={formData.durationSec}
                                             onChange={e => update('durationSec', e.target.value)}
                                             placeholder="00"
-                                            className="w-16 bg-background border border-white/10 rounded-2xl py-3 px-3 text-sm font-bold text-center placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-colors"
+                                            className="w-14 glass-card rounded-2xl py-3.5 px-2 text-sm font-bold text-center placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
                                         />
                                     </div>
                                     <p className="text-[9px] text-text-muted/50 mt-1 font-bold">min : sec</p>
@@ -189,26 +206,26 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
 
                             {/* Date */}
                             <div>
-                                <label className="text-[10px] font-black text-text-muted uppercase tracking-wider mb-2 block">Date & Heure</label>
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2 block">Date & Heure</label>
                                 <input
                                     type="datetime-local"
                                     required
                                     value={formData.startedAt}
                                     onChange={e => update('startedAt', e.target.value)}
-                                    className="w-full bg-background border border-white/10 rounded-2xl py-3 px-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-colors"
+                                    className="w-full glass-card rounded-2xl py-3.5 px-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all"
                                 />
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="btn-primary mt-2"
+                                className="btn-primary w-full py-3.5 text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2 mt-1"
                             >
                                 {loading ? <Loader2 className="animate-spin" size={18} /> : 'Enregistrer l\'activité'}
                             </button>
                         </form>
                     </motion.div>
-                </div>
+                </motion.div>
             )}
         </AnimatePresence>
     );
