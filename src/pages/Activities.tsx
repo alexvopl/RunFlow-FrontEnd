@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, Clock, MapPin, ChevronRight, TrendingUp, Plus, Flame, Zap } from 'lucide-react';
+import { Activity, Clock, MapPin, ChevronRight, TrendingUp, Plus, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../services/api';
 import { formatDistance, calculatePace } from '../utils/format';

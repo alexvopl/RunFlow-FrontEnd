@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock, MapPin, Gauge, Loader2, Trash2, Activity, X } from 'lucide-react';
+import { ChevronLeft, Clock, MapPin, Gauge, Loader2, Trash2, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../services/api';
 import { formatDuration, formatDistance, calculatePace } from '../utils/format';

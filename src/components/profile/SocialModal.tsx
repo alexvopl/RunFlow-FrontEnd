@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Loader2, Users } from 'lucide-react';
+import { X, Search, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
 

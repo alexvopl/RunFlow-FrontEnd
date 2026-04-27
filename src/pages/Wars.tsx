@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, Timer, ShieldAlert, Users, Trophy, Zap, Shield, Clock, CheckCircle, Circle, ChevronRight } from 'lucide-react';
+import { Swords, Timer, ShieldAlert, Users, Trophy, Zap, Shield, CheckCircle, Circle } from 'lucide-react';
 import { api } from '../services/api';
-import { Link } from 'react-router-dom';
 
 // ─────────────────────────────────────────────
 // Types
