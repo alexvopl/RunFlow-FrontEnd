@@ -98,6 +98,9 @@ export function LiveWorkout() {
     const [beeped, setBeeped] = useState(false);
     const [lapToast, setLapToast] = useState<string | null>(null);
     const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'skipped' | 'error'>('idle');
+    // Increments on every GPS point — used as map distanceTrigger so the
+    // map reacts even on the very first fix (before distanceM changes)
+    const [gpsCount, setGpsCount] = useState(0);
 
     // Refs
     const gpsPoints = useRef<GpsPoint[]>([]);
@@ -152,6 +155,9 @@ export function LiveWorkout() {
         if (!navigator.geolocation) return;
         watchId.current = navigator.geolocation.watchPosition(
             (pos) => {
+                // Skip noisy fixes — accuracy worse than 50 m
+                if (pos.coords.accuracy > 50) return;
+
                 const point: GpsPoint = {
                     lat: pos.coords.latitude,
                     lng: pos.coords.longitude,
@@ -159,9 +165,16 @@ export function LiveWorkout() {
                 };
                 gpsPoints.current.push(point);
 
+                // Trigger map update on every point (including the first fix)
+                setGpsCount(n => n + 1);
+
                 if (gpsPoints.current.length >= 2) {
                     const prev = gpsPoints.current[gpsPoints.current.length - 2];
                     const d = haversineDistance(prev, point);
+
+                    // Ignore implausible jumps (> 50 m between fixes)
+                    if (d > 50) return;
+
                     setDistanceM(prev => {
                         const newDist = prev + d;
                         const prevKm = Math.floor(lastKmRef.current / 1000);
@@ -171,11 +184,14 @@ export function LiveWorkout() {
                         return newDist;
                     });
 
+                    // Rolling pace over last 5 points
                     const recent = gpsPoints.current.slice(-5);
                     if (recent.length >= 2) {
                         const first = recent[0];
                         const last = recent[recent.length - 1];
-                        const totalDist = recent.slice(1).reduce((acc, p, i) => acc + haversineDistance(recent[i], p), 0);
+                        const totalDist = recent.slice(1).reduce(
+                            (acc, p, i) => acc + haversineDistance(recent[i], p), 0
+                        );
                         const totalTime = (last.timestamp - first.timestamp) / 1000;
                         if (totalDist > 5) {
                             setCurrentPaceSec((totalTime / totalDist) * 1000);
@@ -184,7 +200,11 @@ export function LiveWorkout() {
                 }
             },
             (err) => console.warn('GPS error:', err),
-            { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+            {
+                enableHighAccuracy: true,
+                maximumAge:         0,       // always fresh — no cached positions
+                timeout:            5000,    // faster timeout than default 10 s
+            }
         );
     }, [beep]);
 
@@ -555,7 +575,7 @@ export function LiveWorkout() {
             <div className="flex-shrink-0 relative" style={{ height: '38vh' }}>
                 <WorkoutMap
                     gpsPointsRef={gpsPoints}
-                    distanceTrigger={distanceM}
+                    distanceTrigger={gpsCount}
                     className="w-full h-full"
                 />
 
