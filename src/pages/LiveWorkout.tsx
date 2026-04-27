@@ -78,6 +78,43 @@ function paceStatusColor(currentSecPerKm: number, targetPaceMin?: number): 'fast
     return 'good';
 }
 
+// ─── Strava helpers ───────────────────────────────────────────────────────
+
+function getTimeOfDay(): string {
+    const h = new Date().getHours();
+    if (h >= 5  && h < 12) return 'du matin';
+    if (h >= 12 && h < 18) return "de l'après-midi";
+    if (h >= 18 && h < 22) return 'du soir';
+    return 'nocturne';
+}
+
+function buildStravaDescription(
+    workout: GuidedWorkout | null,
+    distKm: number,
+    durSec: number,
+): string {
+    const avgPace = durSec > 0 && distKm > 0 ? formatPace(durSec / distKm) : null;
+    const PLG = `\nCette séance fait partie de mon programme d'entraînement avec Runflow.\nRejoins la communauté et progresse avec tes amis ! 🏃\nrunflow.app`;
+
+    if (workout) {
+        const lines: string[] = [workout.title];
+        if (workout.description) lines.push(workout.description);
+        lines.push('');
+        if (distKm > 0)         lines.push(`📍 Distance : ${distKm.toFixed(2)} km`);
+        if (avgPace)             lines.push(`⏱ Allure moyenne : ${avgPace}/km`);
+        if (workout.targetPaceMin) lines.push(`🎯 Allure cible : ${formatPace(workout.targetPaceMin * 60)}/km`);
+        if (workout.distanceKm)  lines.push(`📐 Distance prévue : ${workout.distanceKm} km`);
+        lines.push(PLG);
+        return lines.join('\n');
+    }
+
+    const lines: string[] = [`Course libre ${getTimeOfDay()}`, ''];
+    if (distKm > 0) lines.push(`📍 ${distKm.toFixed(2)} km parcourus`);
+    if (avgPace)    lines.push(`⏱ Allure moyenne : ${avgPace}/km`);
+    lines.push(`\nEnregistrée avec Runflow — l'app de running communautaire 🏃\nRejoins-nous sur runflow.app !`);
+    return lines.join('\n');
+}
+
 // ─── Component ───────────────────────────────────────────────────────────
 export function LiveWorkout() {
     const navigate = useNavigate();
@@ -98,6 +135,8 @@ export function LiveWorkout() {
     const [beeped, setBeeped] = useState(false);
     const [lapToast, setLapToast] = useState<string | null>(null);
     const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'skipped' | 'error'>('idle');
+    const [stravaState, setStravaState] = useState<'idle' | 'pushing' | 'pushed' | 'not_connected' | 'error'>('idle');
+    const [stravaActivityUrl, setStravaActivityUrl] = useState<string | null>(null);
     // Increments on every GPS point — used as map distanceTrigger so the
     // map reacts even on the very first fix (before distanceM changes)
     const [gpsCount, setGpsCount] = useState(0);
@@ -359,6 +398,39 @@ export function LiveWorkout() {
                     splits: splits.length > 0 ? splits : undefined,
                 });
                 setSaveState('saved');
+
+                // ── Push to Strava (if connected) ─────────────────────────
+                setStravaState('pushing');
+                try {
+                    const distKm = finalDistanceM / 1000;
+                    const startedAt = new Date(workoutStartRef.current ?? Date.now()).toISOString();
+                    const description = buildStravaDescription(guidedWorkout, distKm, finalElapsed);
+                    const activityName = guidedWorkout?.title
+                        || `Course libre ${getTimeOfDay()}`;
+
+                    const res = await api.post('/strava/push-activity', {
+                        name:            activityName,
+                        description,
+                        type:            'Run',
+                        startedAt,
+                        distanceMeters:  Math.round(finalDistanceM),
+                        durationSeconds: finalElapsed,
+                    });
+                    const id  = res.data?.stravaActivityId ?? res.data?.id;
+                    const url = id
+                        ? `https://www.strava.com/activities/${id}`
+                        : res.data?.url ?? 'https://www.strava.com';
+                    setStravaActivityUrl(url);
+                    setStravaState('pushed');
+                } catch (stravaErr: any) {
+                    const status = stravaErr?.response?.status;
+                    // 401/403/404 → Strava not connected
+                    if (status === 401 || status === 403 || status === 404) {
+                        setStravaState('not_connected');
+                    } else {
+                        setStravaState('error');
+                    }
+                }
             } catch (e) {
                 console.error('Failed to save activity', e);
                 setSaveState('error');
@@ -480,34 +552,49 @@ export function LiveWorkout() {
     // ─── DONE Screen ──────────────────────────────────────────────────────
     if (phase === 'done') {
         const avgPace = elapsed > 0 && distanceM > 0 ? elapsed / (distanceM / 1000) : 0;
+
+        const openStrava = () => {
+            const url = stravaActivityUrl ?? 'https://www.strava.com';
+            // On mobile, strava:// deep link opens the app directly
+            const appUrl = stravaActivityUrl
+                ? `strava://activities/${stravaActivityUrl.split('/').pop()}`
+                : 'strava://';
+            // Try app first, fall back to web after 1.2 s
+            window.location.href = appUrl;
+            setTimeout(() => window.open(url, '_blank'), 1200);
+        };
+
         return (
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="runna-screen flex flex-col items-center justify-center px-6 text-center"
+                className="runna-screen flex flex-col items-center px-6 pt-10 pb-16 overflow-y-auto text-center"
             >
+                {/* Trophy */}
                 <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
-                    className="w-24 h-24 bg-primary rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-primary/30"
+                    className="w-24 h-24 bg-primary rounded-3xl flex items-center justify-center mb-6 shadow-2xl shadow-primary/30 flex-shrink-0"
                 >
                     <Flag size={40} className="text-white" fill="currentColor" />
                 </motion.div>
+
                 <h1 className="text-3xl font-black uppercase tracking-tight mb-1">Bravo !</h1>
                 <p className="text-text-muted text-sm mb-8 font-medium flex items-center justify-center gap-2">
                     {saveState === 'saving' && <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>}
-                    {saveState === 'saved' && '✓ Activité enregistrée'}
-                    {saveState === 'error' && '⚠ Erreur — activité non enregistrée'}
+                    {saveState === 'saved'   && '✓ Activité enregistrée'}
+                    {saveState === 'error'   && '⚠ Erreur — activité non enregistrée'}
                     {saveState === 'skipped' && 'Séance terminée'}
-                    {saveState === 'idle' && 'Séance terminée'}
+                    {saveState === 'idle'    && 'Séance terminée'}
                 </p>
 
-                <div className="grid grid-cols-3 gap-4 w-full max-w-sm mb-10">
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4 w-full max-w-sm mb-6">
                     {[
-                        { label: 'Distance', value: `${distanceKm.toFixed(2)}`, unit: 'km' },
-                        { label: 'Temps', value: formatTime(elapsed), unit: '' },
-                        { label: 'Allure moy.', value: formatPace(avgPace), unit: '/km' },
+                        { label: 'Distance',    value: `${distanceKm.toFixed(2)}`, unit: 'km' },
+                        { label: 'Temps',       value: formatTime(elapsed),         unit: '' },
+                        { label: 'Allure moy.', value: formatPace(avgPace),         unit: '/km' },
                     ].map(m => (
                         <div key={m.label} className="runna-card rounded-2xl p-4 text-center">
                             <div className="text-lg font-black text-white">{m.value}</div>
@@ -523,7 +610,7 @@ export function LiveWorkout() {
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="w-full max-w-sm mb-8 rounded-[24px] overflow-hidden"
+                        className="w-full max-w-sm mb-6 rounded-[24px] overflow-hidden flex-shrink-0"
                         style={{ height: 180 }}
                     >
                         <WorkoutMap
@@ -534,7 +621,85 @@ export function LiveWorkout() {
                     </motion.div>
                 )}
 
-                <button onClick={() => navigate('/activities')} className="btn-primary max-w-sm">
+                {/* ── Strava sync card ──────────────────────────────── */}
+                <AnimatePresence>
+                    {(saveState === 'saved' || saveState === 'error' || stravaState !== 'idle') && (
+                        <motion.div
+                            key="strava-card"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                            className="w-full max-w-sm mb-6"
+                        >
+                            <div className={`glass-card rounded-[22px] p-4 border transition-all ${
+                                stravaState === 'pushed'
+                                    ? 'border-orange-500/30'
+                                    : 'border-transparent'
+                            }`}>
+                                <div className="flex items-center gap-3">
+                                    {/* Strava logo */}
+                                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
+                                        stravaState === 'pushed' ? 'bg-orange-500' : 'bg-orange-500/15'
+                                    }`}
+                                    style={stravaState === 'pushed' ? { boxShadow: '0 4px 14px rgba(251,146,60,0.35)' } : {}}>
+                                        <svg width="20" height="20" viewBox="0 0 24 24"
+                                            fill={stravaState === 'pushed' ? 'white' : '#f97316'}>
+                                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+                                        </svg>
+                                    </div>
+
+                                    <div className="flex-1 min-w-0 text-left">
+                                        {stravaState === 'pushing' && (
+                                            <>
+                                                <p className="text-sm font-black text-white flex items-center gap-2">
+                                                    <Loader2 size={13} className="animate-spin text-orange-400" />
+                                                    Envoi vers Strava…
+                                                </p>
+                                                <p className="text-[10px] text-text-muted mt-0.5">Synchronisation en cours</p>
+                                            </>
+                                        )}
+                                        {stravaState === 'pushed' && (
+                                            <>
+                                                <p className="text-sm font-black text-white">Envoyée sur Strava ✓</p>
+                                                <p className="text-[10px] text-orange-400 font-bold mt-0.5">Activité synchronisée</p>
+                                            </>
+                                        )}
+                                        {stravaState === 'not_connected' && (
+                                            <>
+                                                <p className="text-sm font-black text-white">Strava non connecté</p>
+                                                <p className="text-[10px] text-text-muted mt-0.5">Connecte Strava dans ton Profil</p>
+                                            </>
+                                        )}
+                                        {stravaState === 'error' && (
+                                            <>
+                                                <p className="text-sm font-black text-white">Erreur Strava</p>
+                                                <p className="text-[10px] text-text-muted mt-0.5">Réessaie depuis Profil → Connexions</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Open Strava button */}
+                                {stravaState === 'pushed' && (
+                                    <motion.button
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        onClick={openStrava}
+                                        className="mt-3 w-full py-3 rounded-full bg-orange-500 text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+                                        style={{ boxShadow: '0 4px 16px rgba(251,146,60,0.35)' }}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+                                        </svg>
+                                        Voir sur Strava
+                                    </motion.button>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <button onClick={() => navigate('/activities')} className="btn-primary w-full max-w-sm">
                     Voir mes activités
                 </button>
             </motion.div>
