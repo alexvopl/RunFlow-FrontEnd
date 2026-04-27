@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, CheckCheck, ChevronLeft, Loader2 } from 'lucide-react';
+import { Bell, CheckCheck, ChevronLeft, Loader2, Trophy, Swords, Users, Dumbbell, Zap } from 'lucide-react';
 import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -11,29 +11,18 @@ interface Notification {
     type: string;
     title: string;
     body: string;
-    isRead: boolean;   // mapped from backend's `read` field
+    isRead: boolean;
     createdAt: string;
 }
 
-const getNotificationAccent = (type: string) => {
+const getTypeConfig = (type: string) => {
     switch (type) {
-        case 'achievement': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-        case 'challenge': return 'bg-primary/10 text-primary border-primary/20';
-        case 'social': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-        case 'training': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-        case 'strava': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-        default: return 'bg-white/5 text-text-muted border-white/5';
-    }
-};
-
-const getNotificationDot = (type: string) => {
-    switch (type) {
-        case 'achievement': return 'bg-amber-500';
-        case 'challenge': return 'bg-primary';
-        case 'social': return 'bg-blue-500';
-        case 'training': return 'bg-purple-500';
-        case 'strava': return 'bg-orange-500';
-        default: return 'bg-text-muted';
+        case 'achievement': return { icon: Trophy, accent: 'bg-amber-500/15 text-amber-400 border-amber-500/20', dot: 'bg-amber-500' };
+        case 'challenge':   return { icon: Swords,  accent: 'bg-primary/15 text-primary border-primary/20',       dot: 'bg-primary' };
+        case 'social':      return { icon: Users,   accent: 'bg-blue-500/15 text-blue-400 border-blue-500/20',   dot: 'bg-blue-500' };
+        case 'training':    return { icon: Dumbbell,accent: 'bg-purple-500/15 text-purple-400 border-purple-500/20', dot: 'bg-purple-500' };
+        case 'strava':      return { icon: Zap,     accent: 'bg-orange-500/15 text-orange-400 border-orange-500/20', dot: 'bg-orange-500' };
+        default:            return { icon: Bell,    accent: 'bg-white/5 text-text-muted border-white/8',          dot: 'bg-text-muted' };
     }
 };
 
@@ -54,10 +43,8 @@ export function Notifications() {
     const fetchNotifications = async () => {
         try {
             const res = await api.get('/notifications');
-            // Backend returns { notifications: [...], unreadCount: N, hasMore: bool }
             const raw = res.data?.notifications ?? res.data;
             const list = Array.isArray(raw) ? raw : [];
-            // Map backend `read` -> frontend `isRead`
             setNotifications(list.map((n: any) => ({
                 id: n.id,
                 type: n.type,
@@ -73,9 +60,7 @@ export function Notifications() {
         }
     };
 
-    useEffect(() => {
-        fetchNotifications();
-    }, []);
+    useEffect(() => { fetchNotifications(); }, []);
 
     const markAsRead = async (id: string) => {
         try {
@@ -101,20 +86,23 @@ export function Notifications() {
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
     return (
-        <div className="min-h-screen pb-8">
-            {/* Header */}
-            <div className="px-4 pt-4 pb-4 flex items-center justify-between sticky top-0 glass-heavy z-10">
+        <div className="min-h-screen pb-28">
+
+            {/* ── Header ───────────────────────────────────────── */}
+            <div className="px-5 pt-7 pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(-1)}
-                        className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors"
+                        className="w-10 h-10 glass-card rounded-2xl flex items-center justify-center text-white active:scale-95 transition-all"
                     >
                         <ChevronLeft size={20} />
                     </button>
                     <div>
-                        <h1 className="text-lg font-black uppercase tracking-tight leading-none">Notifications</h1>
+                        <h1 className="text-xl font-black tracking-tight text-white leading-none">Notifications</h1>
                         {unreadCount > 0 && (
-                            <p className="text-[10px] text-primary font-bold uppercase tracking-widest mt-0.5">{unreadCount} non lu{unreadCount > 1 ? 'es' : 'e'}</p>
+                            <p className="text-[10px] text-primary font-bold uppercase tracking-widest mt-0.5">
+                                {unreadCount} non lu{unreadCount > 1 ? 'es' : 'e'}
+                            </p>
                         )}
                     </div>
                 </div>
@@ -123,73 +111,82 @@ export function Notifications() {
                     <button
                         onClick={markAllAsRead}
                         disabled={markingAll}
-                        className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-3.5 py-2 glass-card rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/8 transition-colors disabled:opacity-50 active:scale-95"
                     >
-                        {markingAll ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={14} />}
+                        {markingAll ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={13} />}
                         Tout lire
                     </button>
                 )}
             </div>
 
-            <div className="px-4 pt-4 space-y-3">
+            {/* ── Content ──────────────────────────────────────── */}
+            <div className="px-5 space-y-2.5">
+
                 {loading ? (
-                    // Skeleton
                     Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="bg-surface rounded-3xl p-5 flex items-start gap-4 border border-white/5">
+                        <div key={i} className="glass-card rounded-[22px] p-4 flex items-start gap-3">
                             <div className="skeleton w-11 h-11 rounded-2xl flex-shrink-0" />
-                            <div className="flex-1 space-y-2">
-                                <div className="skeleton h-3 w-2/3 rounded" />
-                                <div className="skeleton h-3 w-full rounded" />
-                                <div className="skeleton h-2 w-1/4 rounded" />
+                            <div className="flex-1 space-y-2 py-0.5">
+                                <div className="skeleton h-3 w-2/3 rounded-lg" />
+                                <div className="skeleton h-3 w-full rounded-lg" />
+                                <div className="skeleton h-2 w-1/4 rounded-lg" />
                             </div>
                         </div>
                     ))
                 ) : notifications.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-24 gap-4">
-                        <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center">
-                            <Bell size={36} className="text-text-muted/30" />
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-center justify-center py-24 gap-5"
+                    >
+                        <div className="w-20 h-20 glass-hero rounded-[24px] flex items-center justify-center">
+                            <Bell size={32} className="text-text-muted/40" />
                         </div>
                         <div className="text-center">
-                            <p className="font-black text-sm uppercase tracking-widest text-text-muted">Aucune notification</p>
-                            <p className="text-xs text-text-muted/50 mt-1 font-medium">Vous êtes à jour !</p>
+                            <p className="font-black text-sm text-white">Aucune notification</p>
+                            <p className="text-xs text-text-muted mt-1 font-medium">Tu es à jour !</p>
                         </div>
-                    </div>
+                    </motion.div>
                 ) : (
                     <AnimatePresence>
-                        {notifications.map((notif, i) => (
-                            <motion.div
-                                key={notif.id}
-                                initial={{ opacity: 0, y: 12 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.04, duration: 0.2 }}
-                                onClick={() => !notif.isRead && markAsRead(notif.id)}
-                                className={`relative flex items-start gap-4 p-5 rounded-3xl border transition-all cursor-pointer press-effect ${notif.isRead
-                                    ? 'bg-surface border-white/5 opacity-60'
-                                    : 'bg-surface border-white/[0.08] shadow-lg'
+                        {notifications.map((notif, i) => {
+                            const { icon: Icon, accent, dot } = getTypeConfig(notif.type);
+                            return (
+                                <motion.div
+                                    key={notif.id}
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.04, duration: 0.2 }}
+                                    onClick={() => !notif.isRead && markAsRead(notif.id)}
+                                    className={`relative glass-card rounded-[22px] p-4 flex items-start gap-3.5 transition-all cursor-pointer active:scale-[0.98] ${
+                                        notif.isRead ? 'opacity-50' : ''
                                     }`}
-                            >
-                                {/* Type dot */}
-                                {!notif.isRead && (
-                                    <div className={`absolute top-5 right-5 w-2 h-2 rounded-full ${getNotificationDot(notif.type)}`} />
-                                )}
+                                >
+                                    {/* Unread dot */}
+                                    {!notif.isRead && (
+                                        <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${dot}`} />
+                                    )}
 
-                                {/* Icon */}
-                                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 border ${getNotificationAccent(notif.type)}`}>
-                                    <Bell size={18} />
-                                </div>
+                                    {/* Icon */}
+                                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 border ${accent}`}>
+                                        <Icon size={17} />
+                                    </div>
 
-                                {/* Content */}
-                                <div className="flex-1 min-w-0 pr-4">
-                                    <p className={`text-sm font-black uppercase tracking-tight leading-snug ${notif.isRead ? 'text-text-muted' : 'text-white'}`}>
-                                        {notif.title}
-                                    </p>
-                                    <p className="text-xs text-text-muted font-medium mt-1 leading-relaxed">{notif.body}</p>
-                                    <p className="text-[9px] text-text-muted/50 font-bold uppercase tracking-widest mt-2">
-                                        {safeRelativeTime(notif.createdAt)}
-                                    </p>
-                                </div>
-                            </motion.div>
-                        ))}
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0 pr-3">
+                                        <p className={`text-sm font-black tracking-tight leading-snug ${notif.isRead ? 'text-text-muted' : 'text-white'}`}>
+                                            {notif.title}
+                                        </p>
+                                        <p className="text-xs text-text-muted font-medium mt-1 leading-relaxed">
+                                            {notif.body}
+                                        </p>
+                                        <p className="text-[9px] text-text-muted/50 font-bold uppercase tracking-widest mt-2">
+                                            {safeRelativeTime(notif.createdAt)}
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
                     </AnimatePresence>
                 )}
             </div>

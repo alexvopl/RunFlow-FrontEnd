@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, ChevronLeft, Loader2, Lock } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { motion } from 'framer-motion';
 
 function parseRecoveryHash(hash: string) {
     const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
@@ -84,77 +85,112 @@ export function ResetPassword() {
     };
 
     return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-sm space-y-8">
-                <div>
-                    <Link to="/login" className="inline-flex items-center gap-2 text-text-muted hover:text-white transition-colors text-sm font-bold mb-8">
-                        <ChevronLeft size={18} />
-                        Retour à la connexion
-                    </Link>
-                    <h1 className="text-3xl font-black italic uppercase tracking-tighter mb-2">Nouveau mot de passe</h1>
-                    <p className="text-text-muted text-sm">Choisissez un nouveau mot de passe pour votre compte.</p>
+        <div className="min-h-screen flex flex-col items-center justify-center p-5">
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="w-full max-w-sm"
+            >
+                {/* Back link */}
+                <Link
+                    to="/login"
+                    className="inline-flex items-center gap-1.5 text-text-muted hover:text-white transition-colors text-sm font-bold mb-7"
+                >
+                    <ChevronLeft size={16} />
+                    Retour
+                </Link>
+
+                {/* Logo */}
+                <div className="text-center mb-8">
+                    <h1 className="text-[2.6rem] font-black italic tracking-tighter text-white leading-none">
+                        Run<span className="text-primary">Flow</span>
+                    </h1>
+                    <p className="text-text-muted text-sm mt-2">Nouveau mot de passe 🔒</p>
                 </div>
 
-                {success ? (
-                    <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-5 rounded-2xl flex flex-col items-center gap-3 text-center">
-                        <CheckCircle2 size={32} />
-                        <div>
-                            <p className="font-bold mb-1">Mot de passe mis à jour</p>
-                            <p className="text-sm text-green-400/70">Votre session est prête. Redirection vers l’application...</p>
-                        </div>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-xl flex items-center gap-2 text-sm">
-                                <AlertCircle size={16} />
-                                {error}
+                {/* Card */}
+                <div className="glass-hero rounded-[28px] p-6">
+
+                    {success ? (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex flex-col items-center gap-4 text-center py-4"
+                        >
+                            <div className="w-16 h-16 rounded-[20px] glass-card flex items-center justify-center">
+                                <CheckCircle2 size={28} className="text-green-400" />
                             </div>
-                        )}
-
-                        {!ready ? (
-                            <div className="premium-panel p-6 text-center space-y-3">
-                                <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
-                                <p className="text-sm text-text-muted">Vérification du lien de réinitialisation...</p>
+                            <div>
+                                <p className="font-black text-white text-lg mb-1">Mot de passe mis à jour !</p>
+                                <p className="text-sm text-text-muted leading-relaxed">
+                                    Ta session est prête. Redirection vers l'application…
+                                </p>
                             </div>
-                        ) : (
-                            <>
-                                <div className="relative">
-                                    <Lock className="absolute left-4 top-3.5 text-text-muted" size={20} />
-                                    <input
-                                        type="password"
-                                        placeholder="Nouveau mot de passe"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full bg-surface border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
-                                        required
-                                    />
-                                </div>
+                        </motion.div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="space-y-4">
 
-                                <div className="relative">
-                                    <Lock className="absolute left-4 top-3.5 text-text-muted" size={20} />
-                                    <input
-                                        type="password"
-                                        placeholder="Confirmer le mot de passe"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="w-full bg-surface border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-white placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors"
-                                        required
-                                    />
-                                </div>
+                            <p className="text-sm text-text-muted leading-relaxed mb-1">
+                                Choisis un nouveau mot de passe pour ton compte.
+                            </p>
 
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full bg-primary text-black font-bold py-4 rounded-2xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            {error && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-2xl flex items-center gap-2.5 text-sm"
                                 >
-                                    {loading ? <Loader2 className="animate-spin" size={20} /> : 'Mettre à jour le mot de passe'}
-                                </button>
-                            </>
-                        )}
-                    </form>
-                )}
-            </div>
+                                    <AlertCircle size={15} className="flex-shrink-0" />
+                                    {error}
+                                </motion.div>
+                            )}
+
+                            {!ready && !error ? (
+                                <div className="glass-card rounded-[22px] p-6 flex flex-col items-center gap-3 text-center">
+                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                    <p className="text-sm text-text-muted">Vérification du lien…</p>
+                                </div>
+                            ) : ready ? (
+                                <>
+                                    <div className="relative">
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={17} />
+                                        <input
+                                            type="password"
+                                            placeholder="Nouveau mot de passe"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="w-full glass-card rounded-2xl py-3.5 pl-11 pr-4 text-white text-sm placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="relative">
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={17} />
+                                        <input
+                                            type="password"
+                                            placeholder="Confirmer le mot de passe"
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className="w-full glass-card rounded-2xl py-3.5 pl-11 pr-4 text-white text-sm placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+                                            required
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="btn-primary w-full py-3.5 text-sm font-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin" size={18} /> : 'Mettre à jour'}
+                                    </button>
+                                </>
+                            ) : null}
+                        </form>
+                    )}
+                </div>
+            </motion.div>
         </div>
     );
 }
