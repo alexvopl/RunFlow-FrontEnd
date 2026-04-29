@@ -99,7 +99,8 @@ export function Training() {
             setShowDeleteConfirm(false);
             setAdaptationRecommended(null);
             await fetchPlan();
-        } catch {
+        } catch (error) {
+            console.error('Failed to delete training plan', error);
             setDeleteError("Impossible de supprimer ce plan pour le moment.");
         } finally {
             setDeletingPlan(false);

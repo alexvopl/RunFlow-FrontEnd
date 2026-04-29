@@ -19,7 +19,10 @@ Le script :
 - injecte `FRONTEND_URL`, `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL_DEFAULT`, `PASSWORD_RESET_URL_DEFAULT` et `STRAVA_REDIRECT_URI` côté backend
 - injecte `VITE_API_URL`, `VITE_APP_URL`, `VITE_AUTH_REDIRECT_URL` et `VITE_PASSWORD_RESET_URL` côté frontend
 - garde l'URL téléphone visible en haut du terminal
-- préfixe les logs avec `frontend` et `backend` sans effacer l'écran
+- écrit tous les logs dans `.logs/dev-stack.log`
+- écrit les anomalies détectées dans `.logs/dev-stack-alerts.log`
+- affiche le terminal en mode compact par défaut pour garder surtout le démarrage et les alertes `[watch]`
+- vérifie `GET /api/health` toutes les 60 secondes et alerte si l'API devient indisponible ou `unhealthy`
 
 Commande de vérification sans lancer les serveurs :
 
@@ -34,6 +37,10 @@ Variables optionnelles :
 - `RUNFLOW_HOST_IP` pour forcer l'IP locale affichée et utilisée
 - `BACKEND_PORT` et `FRONTEND_PORT` pour changer les ports
 - `RUNFLOW_SKIP_INSTALL=1` pour désactiver l'installation automatique des dépendances
+- `RUNFLOW_LOG_MODE=all` pour revoir tous les logs dans le terminal (`compact` par défaut, `alerts` pour n'afficher que les alertes)
+- `RUNFLOW_LOG_WATCH=0` pour désactiver la détection d'anomalies
+- `RUNFLOW_HEALTH_CHECK=0` pour désactiver le check `/api/health`
+- `RUNFLOW_HEALTH_CHECK_INTERVAL_MS=60000` pour changer la fréquence du check santé
 
 ## Prerequisites
 

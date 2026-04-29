@@ -310,7 +310,6 @@ main {
 
 .app-main {
   position: relative;
-  z-index: 1;
   width: min(100%, 480px);
   margin: 0 auto;
 }

@@ -132,8 +132,9 @@ export function CreateClanModal({ isOpen, onClose, onCreated }: CreateClanModalP
                                     <input
                                         type="number"
                                         min={0}
-                                        value={formData.minWeeklyKm}
-                                        onChange={(e) => setFormData({ ...formData, minWeeklyKm: parseInt(e.target.value) || 0 })}
+                                        placeholder="0"
+                                        value={formData.minWeeklyKm === 0 ? '' : formData.minWeeklyKm}
+                                        onChange={(e) => setFormData({ ...formData, minWeeklyKm: e.target.value === '' ? 0 : Number(e.target.value) })}
                                         className="w-full glass-card rounded-2xl px-4 py-3.5 text-white text-sm placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
                                     />
                                 </div>

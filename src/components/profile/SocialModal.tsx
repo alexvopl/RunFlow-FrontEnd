@@ -15,10 +15,17 @@ export function SocialModal({ isOpen, onClose, title }: SocialModalProps) {
     const [loading, setLoading] = useState(false);
 
     const searchUsers = async (q: string) => {
+        const term = q.trim();
+        if (term.length < 2) {
+            setUsers([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
-            const res = await api.get('/profiles/search', { params: { q } });
-            setUsers(Array.isArray(res.data) ? res.data : []);
+            const res = await api.get('/profiles/search', { params: { q: term } });
+            setUsers(Array.isArray(res.data?.profiles) ? res.data.profiles : []);
         } catch (error) {
             console.error('Failed to search profiles', error);
             setUsers([]);
@@ -28,15 +35,29 @@ export function SocialModal({ isOpen, onClose, title }: SocialModalProps) {
     };
 
     useEffect(() => {
-        if (!isOpen) return;
-        void searchUsers('');
-    }, [isOpen]);
+        if (!isOpen) {
+            setQuery('');
+            setUsers([]);
+            setLoading(false);
+            return;
+        }
+
+        const term = query.trim();
+        if (term.length < 2) {
+            setUsers([]);
+            setLoading(false);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            void searchUsers(term);
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [isOpen, query]);
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setQuery(val);
-        const timer = setTimeout(() => searchUsers(val), 400);
-        return () => clearTimeout(timer);
+        setQuery(e.target.value);
     };
 
     return (

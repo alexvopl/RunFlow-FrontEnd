@@ -1,42 +1,191 @@
 import { useState } from 'react';
-import { ChevronLeft, Loader2, Calendar, Target, Activity, Zap } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Target, Activity, Zap, TrendingUp, Clock } from 'lucide-react';
 import { api } from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
+
+interface PhaseConfig {
+    color: string;
+    bg: string;
+    border: string;
+    glow: string;
+    label: string;
+    desc: string;
+    zoneHint: string;
+}
+
+const PHASE_CONFIGS: Record<string, PhaseConfig> = {
+    base: {
+        color: '#5ab2ff',
+        bg: 'rgba(90,178,255,0.09)',
+        border: 'rgba(90,178,255,0.22)',
+        glow: 'rgba(90,178,255,0.35)',
+        label: 'BASE',
+        desc: 'Fondation aérobie — effort facile, régularité',
+        zoneHint: 'Z1–Z2 · 90%',
+    },
+    build: {
+        color: '#22d3ee',
+        bg: 'rgba(34,211,238,0.09)',
+        border: 'rgba(34,211,238,0.22)',
+        glow: 'rgba(34,211,238,0.30)',
+        label: 'BUILD',
+        desc: 'Volume progressif — endurance et côtes',
+        zoneHint: 'Volume ↑',
+    },
+    intensity: {
+        color: '#f97316',
+        bg: 'rgba(249,115,22,0.09)',
+        border: 'rgba(249,115,22,0.22)',
+        glow: 'rgba(249,115,22,0.35)',
+        label: 'INTENSITÉ',
+        desc: 'Seuil & VO2max — pic de charge',
+        zoneHint: 'Z4–Z5 · 20%',
+    },
+    specificity: {
+        color: '#fbbf24',
+        bg: 'rgba(251,191,36,0.09)',
+        border: 'rgba(251,191,36,0.22)',
+        glow: 'rgba(251,191,36,0.30)',
+        label: 'SPÉCIFICITÉ',
+        desc: 'Simulation course — allure et terrain cibles',
+        zoneHint: 'Allure cible',
+    },
+    taper: {
+        color: '#22c55e',
+        bg: 'rgba(34,197,94,0.09)',
+        border: 'rgba(34,197,94,0.22)',
+        glow: 'rgba(34,197,94,0.30)',
+        label: 'AFFÛTAGE',
+        desc: 'Volume –40% — rester frais pour le jour J',
+        zoneHint: 'Vol. –40%',
+    },
+};
+
+function getPhaseConfig(name: string): PhaseConfig {
+    return PHASE_CONFIGS[name] ?? PHASE_CONFIGS.base;
+}
 
 interface PlanGeneratorProps {
     onPlanGenerated: () => void;
 }
+
+type GoalId = '5k' | '10k' | 'half_marathon' | 'marathon';
+type LevelId = 'beginner' | 'intermediate' | 'advanced';
 
 const GOALS = [
     { id: '5k',            label: '5 KM',      icon: Zap,      desc: 'Rapide & intense' },
     { id: '10k',           label: '10 KM',     icon: Target,   desc: 'Classique' },
     { id: 'half_marathon', label: 'Semi',      icon: Activity, desc: 'Endurance' },
     { id: 'marathon',      label: 'Marathon',  icon: Target,   desc: 'Le graal' },
+] as const;
+
+const LEVELS: { id: LevelId; label: string; desc: string }[] = [
+    { id: 'beginner',     label: 'Débutant',     desc: 'Base progressive' },
+    { id: 'intermediate', label: 'Intermédiaire', desc: 'Charge équilibrée' },
+    { id: 'advanced',     label: 'Avancé',       desc: 'Plus dense' },
 ];
+
+const WEEK_DAYS = [
+    { id: 1, label: 'Lun' },
+    { id: 2, label: 'Mar' },
+    { id: 3, label: 'Mer' },
+    { id: 4, label: 'Jeu' },
+    { id: 5, label: 'Ven' },
+    { id: 6, label: 'Sam' },
+    { id: 0, label: 'Dim' },
+];
+
+const RACE_DISTANCES = [
+    { id: '',              label: 'Aucune' },
+    { id: '5k',            label: '5 KM' },
+    { id: '10k',           label: '10 KM' },
+    { id: 'half_marathon', label: 'Semi' },
+    { id: 'marathon',      label: 'Marathon' },
+] as const;
+
+function optionalNumber(value: string) {
+    if (value.trim() === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        goal: 'half_marathon',
+        goal: 'half_marathon' as GoalId,
+        level: 'intermediate' as LevelId,
         durationWeeks: 12,
         sessionsPerWeek: 4,
         targetDate: new Date(Date.now() + 12 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         currentWeeklyKm: 30,
+        recentRaceDistance: '' as '' | GoalId,
+        raceHours: '',
+        raceMinutes: '',
+        raceSeconds: '',
+        availableDays: [1, 2, 3, 4, 5] as number[],
+        age: '',
+        restingHR: '',
+        maxHR: '',
     });
     const [preview, setPreview] = useState<any>(null);
+
+    const buildRecentRaceTime = () => {
+        if (!formData.recentRaceDistance) return undefined;
+
+        const hours = optionalNumber(formData.raceHours) ?? 0;
+        const minutes = optionalNumber(formData.raceMinutes) ?? 0;
+        const seconds = optionalNumber(formData.raceSeconds) ?? 0;
+        const timeSeconds = hours * 3600 + minutes * 60 + seconds;
+
+        if (timeSeconds <= 0) return undefined;
+        return {
+            distance: formData.recentRaceDistance,
+            timeSeconds,
+        };
+    };
+
+    const buildUserData = () => {
+        const userData: Record<string, unknown> = {
+            currentWeeklyKm: formData.currentWeeklyKm,
+        };
+        const recentRaceTime = buildRecentRaceTime();
+        const age = optionalNumber(formData.age);
+        const restingHR = optionalNumber(formData.restingHR);
+        const maxHR = optionalNumber(formData.maxHR);
+
+        if (recentRaceTime) userData.recentRaceTime = recentRaceTime;
+        if (formData.availableDays.length > 0) userData.availableDays = formData.availableDays;
+        if (age !== undefined) userData.age = age;
+        if (restingHR !== undefined) userData.restingHR = restingHR;
+        if (maxHR !== undefined) userData.maxHR = maxHR;
+
+        return userData;
+    };
+
+    const buildTrainingPayload = () => ({
+        goal: formData.goal,
+        level: formData.level,
+        durationWeeks: Math.min(24, Math.max(6, formData.durationWeeks || 6)),
+        sessionsPerWeek: formData.sessionsPerWeek,
+        targetDate: formData.targetDate,
+        userData: buildUserData(),
+    });
+
+    const toggleAvailableDay = (day: number) => {
+        setFormData(previous => ({
+            ...previous,
+            availableDays: previous.availableDays.includes(day)
+                ? previous.availableDays.filter(value => value !== day)
+                : [...previous.availableDays, day].sort((a, b) => a - b),
+        }));
+    };
 
     const fetchPreview = async () => {
         setLoading(true);
         try {
-            const res = await api.post('/training/preview', {
-                goal: formData.goal,
-                durationWeeks: formData.durationWeeks,
-                sessionsPerWeek: formData.sessionsPerWeek,
-                targetDate: formData.targetDate,
-                userData: { currentWeeklyKm: formData.currentWeeklyKm },
-            });
-            setPreview(res.data);
+            const res = await api.post('/training/preview', buildTrainingPayload());
+            setPreview(res.data?.preview ?? res.data);
         } catch (error) {
             console.error('Failed to fetch preview', error);
         } finally {
@@ -53,13 +202,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            await api.post('/training/generate', {
-                goal: formData.goal,
-                durationWeeks: formData.durationWeeks,
-                sessionsPerWeek: formData.sessionsPerWeek,
-                targetDate: formData.targetDate,
-                userData: { currentWeeklyKm: formData.currentWeeklyKm },
-            }, { timeout: 120000 });
+            await api.post('/training/generate', buildTrainingPayload(), { timeout: 120000 });
             onPlanGenerated();
         } catch (error) {
             console.error('Failed to generate plan', error);
@@ -121,6 +264,36 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                         </div>
 
                         <div className="space-y-4">
+                            {/* Niveau */}
+                            <div className="glass-card rounded-[22px] p-5">
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                    Niveau d'entraînement
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {LEVELS.map(level => {
+                                        const isSelected = formData.level === level.id;
+                                        return (
+                                            <button
+                                                key={level.id}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, level: level.id })}
+                                                className={`rounded-2xl px-3 py-3 text-left transition-all ${
+                                                    isSelected
+                                                        ? 'bg-primary text-white scale-[1.02]'
+                                                        : 'glass-hero text-text-muted hover:text-white'
+                                                }`}
+                                                style={isSelected ? { boxShadow: '0 4px 16px rgba(90,178,255,0.35)' } : {}}
+                                            >
+                                                <div className="text-xs font-black">{level.label}</div>
+                                                <div className={`text-[8px] font-bold mt-1 ${isSelected ? 'text-white/75' : 'text-text-muted'}`}>
+                                                    {level.desc}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             {/* Volume actuel */}
                             <div className="glass-card rounded-[22px] p-5">
                                 <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
@@ -130,9 +303,9 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                     <input
                                         type="number"
                                         min="0"
-                                        max="200"
-                                        value={formData.currentWeeklyKm}
-                                        onChange={e => setFormData({ ...formData, currentWeeklyKm: parseInt(e.target.value) || 0 })}
+                                        max="300"
+                                        value={formData.currentWeeklyKm === 0 ? '' : formData.currentWeeklyKm}
+                                        onChange={e => setFormData({ ...formData, currentWeeklyKm: e.target.value === '' ? 0 : Number(e.target.value) })}
                                         className="glass-hero rounded-2xl text-3xl font-black w-28 py-3 px-4 text-center focus:outline-none focus:border-primary/50 transition-all"
                                     />
                                     <span className="text-text-muted font-black uppercase tracking-widest text-xs">km / semaine</span>
@@ -145,9 +318,10 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                     Séances par semaine (objectif)
                                 </label>
                                 <div className="flex gap-2">
-                                    {[3, 4, 5, 6].map(n => (
+                                    {[3, 4, 5, 6, 7].map(n => (
                                         <button
                                             key={n}
+                                            type="button"
                                             onClick={() => setFormData({ ...formData, sessionsPerWeek: n })}
                                             className={`flex-1 py-4 rounded-2xl font-black text-lg transition-all ${
                                                 formData.sessionsPerWeek === n
@@ -163,6 +337,34 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Données cardio */}
+                            <div className="glass-card rounded-[22px] p-5">
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                    Données cardio <span className="text-text-muted/40 normal-case tracking-normal">(optionnel)</span>
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { key: 'age', label: 'Âge', min: 10, max: 100 },
+                                        { key: 'restingHR', label: 'FC repos', min: 30, max: 100 },
+                                        { key: 'maxHR', label: 'FC max', min: 120, max: 220 },
+                                    ].map(field => (
+                                        <div key={field.key}>
+                                            <span className="text-[8px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">
+                                                {field.label}
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min={field.min}
+                                                max={field.max}
+                                                value={formData[field.key as 'age' | 'restingHR' | 'maxHR']}
+                                                onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
+                                                className="w-full glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center focus:outline-none focus:border-primary/50 transition-all"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
@@ -172,87 +374,269 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                 return (
                     <div className="space-y-6">
                         <div>
-                            <h2 className="text-2xl font-black tracking-tight mb-1">Date de l'objectif</h2>
-                            <p className="text-text-muted text-sm">Quand est prévue ta course ?</p>
+                            <h2 className="text-2xl font-black tracking-tight mb-1">Paramètres du plan</h2>
+                            <p className="text-text-muted text-sm">Tous les paramètres acceptés par le moteur backend.</p>
                         </div>
 
-                        <div className="glass-card rounded-[22px] p-5">
-                            <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
-                                Date cible
-                            </label>
-                            <div className="relative">
-                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-primary" size={18} />
-                                <input
-                                    type="date"
-                                    value={formData.targetDate}
-                                    onChange={e => setFormData({ ...formData, targetDate: e.target.value })}
-                                    className="w-full glass-hero rounded-2xl py-4 pl-12 pr-4 text-base font-black focus:outline-none focus:border-primary/50 transition-all"
-                                />
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="glass-card rounded-[22px] p-5">
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                        Durée
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <Clock size={18} className="text-primary shrink-0" />
+                                        <input
+                                            type="number"
+                                            min="6"
+                                            max="24"
+                                            value={formData.durationWeeks === 0 ? '' : formData.durationWeeks}
+                                            onChange={e => setFormData({ ...formData, durationWeeks: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                            className="w-full glass-hero rounded-2xl py-3 px-3 text-base font-black text-center focus:outline-none focus:border-primary/50 transition-all"
+                                        />
+                                    </div>
+                                    <p className="text-[9px] text-text-muted font-bold mt-3">6 à 24 semaines</p>
+                                </div>
+
+                                <div className="glass-card rounded-[22px] p-5">
+                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                        Date cible
+                                    </label>
+                                    <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size={16} />
+                                        <input
+                                            type="date"
+                                            value={formData.targetDate}
+                                            onChange={e => setFormData({ ...formData, targetDate: e.target.value })}
+                                            className="w-full glass-hero rounded-2xl py-3 pl-10 pr-2 text-xs font-black focus:outline-none focus:border-primary/50 transition-all"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <p className="text-[10px] text-text-muted font-bold mt-4 leading-relaxed">
-                                Un plan optimal dure entre 10 et 16 semaines. Le plan sera adapté à ton délai.
-                            </p>
+
+                            <div className="glass-card rounded-[22px] p-5">
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                    Performance récente <span className="text-text-muted/40 normal-case tracking-normal">(optionnel)</span>
+                                </label>
+                                <div className="grid grid-cols-4 gap-2">
+                                    <select
+                                        value={formData.recentRaceDistance}
+                                        onChange={e => setFormData({ ...formData, recentRaceDistance: e.target.value as '' | GoalId })}
+                                        className="col-span-4 glass-hero rounded-2xl px-3 py-3 text-sm font-black focus:outline-none focus:border-primary/50 transition-all"
+                                    >
+                                        {RACE_DISTANCES.map(distance => (
+                                            <option key={distance.id} value={distance.id}>{distance.label}</option>
+                                        ))}
+                                    </select>
+                                    {[
+                                        { key: 'raceHours', label: 'h' },
+                                        { key: 'raceMinutes', label: 'min' },
+                                        { key: 'raceSeconds', label: 's' },
+                                    ].map(field => (
+                                        <input
+                                            key={field.key}
+                                            type="number"
+                                            min="0"
+                                            max={field.key === 'raceHours' ? '12' : '59'}
+                                            placeholder={field.label}
+                                            value={formData[field.key as 'raceHours' | 'raceMinutes' | 'raceSeconds']}
+                                            onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
+                                            className="glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
+                                        />
+                                    ))}
+                                    <div className="glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center text-text-muted">
+                                        temps
+                                    </div>
+                                </div>
+                                <p className="text-[9px] text-text-muted font-bold mt-3 leading-relaxed">
+                                    Si renseignée, cette performance sert à calculer les allures. Le niveau reste utilisé pour structurer la charge.
+                                </p>
+                            </div>
+
+                            <div className="glass-card rounded-[22px] p-5">
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                    Jours disponibles
+                                </label>
+                                <div className="grid grid-cols-7 gap-1.5">
+                                    {WEEK_DAYS.map(day => {
+                                        const isSelected = formData.availableDays.includes(day.id);
+                                        return (
+                                            <button
+                                                key={day.id}
+                                                type="button"
+                                                onClick={() => toggleAvailableDay(day.id)}
+                                                className={`py-3 rounded-2xl text-[10px] font-black transition-all ${
+                                                    isSelected
+                                                        ? 'bg-primary text-white'
+                                                        : 'glass-hero text-text-muted hover:text-white'
+                                                }`}
+                                            >
+                                                {day.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
 
             /* ── Étape 4 : Aperçu ───────────────────────────── */
-            case 4:
+            case 4: {
+                const weeklyData: { week: number; km: number; phase: string; isRecovery: boolean }[] = preview?.weeklyData ?? [];
+                const maxKm = weeklyData.length > 0 ? Math.max(...weeklyData.map((w: any) => w.km)) : 0;
+                const startKm = preview?.startingWeeklyKm ?? formData.currentWeeklyKm;
+
+                // Group consecutive weeks by phase for background bands
+                const phaseGroups: { phase: string; weeks: typeof weeklyData }[] = [];
+                weeklyData.forEach((w: any) => {
+                    const last = phaseGroups[phaseGroups.length - 1];
+                    if (last && last.phase === w.phase) last.weeks.push(w);
+                    else phaseGroups.push({ phase: w.phase, weeks: [w] });
+                });
+
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h2 className="text-2xl font-black tracking-tight mb-1">Aperçu du plan</h2>
-                            <p className="text-text-muted text-sm">Voici ce qui t'attend.</p>
+                            <h2 className="text-2xl font-black tracking-tight mb-0.5">Ton plan</h2>
+                            <p className="text-text-muted text-xs font-medium">Périodisation personnalisée · {preview?.totalWeeks ?? '—'} semaines</p>
                         </div>
 
                         {loading ? (
                             <div className="glass-card rounded-[22px] p-10 flex flex-col items-center gap-4">
                                 <Loader2 className="animate-spin text-primary" size={36} />
                                 <p className="text-[10px] font-black text-text-muted uppercase tracking-widest animate-pulse">
-                                    Génération par l'IA…
+                                    Génération…
                                 </p>
                             </div>
                         ) : preview ? (
-                            <div className="glass-hero rounded-[28px] p-5 space-y-4 relative overflow-hidden">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-black text-text-muted uppercase tracking-widest">Durée totale</span>
-                                    <span className="text-3xl font-black text-primary">{preview.totalWeeks} sem.</span>
-                                </div>
-                                <div className="w-full h-px bg-white/8" />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="glass-card rounded-[18px] p-4">
-                                        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Pic semaine</div>
-                                        <div className="text-xl font-black text-white">
-                                            {Math.round((preview.estimatedPeakWeeklyMinutes || 0) / 60)}h
-                                            <span className="text-xs text-text-muted font-bold"> max</span>
+                            <div className="space-y-3">
+
+                                {/* ── Stats ─── */}
+                                <motion.div
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="glass-hero rounded-[22px] p-4 flex items-center justify-between"
+                                >
+                                    {[
+                                        { label: 'Durée', value: `${preview.totalWeeks}`, unit: 'sem.', color: '#5ab2ff' },
+                                        { label: 'Pic volume', value: `${Math.round(preview.estimatedPeakWeeklyKm ?? 0)}`, unit: 'km/sem', color: '#f97316' },
+                                        { label: 'Départ', value: `${Math.round(startKm)}`, unit: 'km/sem', color: '#94a3b8' },
+                                    ].map(({ label, value, unit, color }, idx) => (
+                                        <div key={idx} className="text-center flex-1">
+                                            <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: `${color}99` }}>{label}</div>
+                                            <div className="text-2xl font-black leading-none" style={{ color }}>{value}</div>
+                                            <div className="text-[8px] font-bold text-text-muted mt-0.5">{unit}</div>
                                         </div>
-                                    </div>
-                                    <div className="glass-card rounded-[18px] p-4">
-                                        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-1">Séances / sem.</div>
-                                        <div className="text-xl font-black text-white">
-                                            {formData.sessionsPerWeek}
-                                            <span className="text-xs text-text-muted font-bold"> / sem</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                {preview.phases && preview.phases.length > 0 && (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {preview.phases.map((phase: any, i: number) => (
-                                            <div key={i} className="glass-card rounded-[18px] p-3">
-                                                <div className="text-[9px] font-black text-primary uppercase tracking-widest mb-1">{phase.name}</div>
-                                                <div className="text-sm font-black text-white">
-                                                    {phase.weeks}
-                                                    <span className="text-xs text-text-muted font-bold"> sem.</span>
-                                                </div>
+                                    ))}
+                                </motion.div>
+
+                                {/* ── Graphe volume km/semaine ─── */}
+                                {weeklyData.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.1, duration: 0.3 }}
+                                        className="glass-card rounded-[20px] p-4"
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <TrendingUp size={11} className="text-primary" />
+                                                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">Volume km / semaine</span>
                                             </div>
-                                        ))}
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[8px] font-bold text-text-muted">{Math.round(startKm)}</span>
+                                                <div className="w-8 h-px bg-text-muted/20" />
+                                                <span className="text-[8px] font-black" style={{ color: '#f97316' }}>{Math.round(maxKm)} km</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Barres groupées par phase */}
+                                        <div className="flex items-end gap-px h-20 rounded-lg overflow-hidden">
+                                            {phaseGroups.map((group, gi) => {
+                                                const cfg = getPhaseConfig(group.phase);
+                                                return (
+                                                    <div
+                                                        key={gi}
+                                                        className="flex items-end gap-px h-full relative"
+                                                        style={{ flex: group.weeks.length, background: `${cfg.color}08` }}
+                                                    >
+                                                        {group.weeks.map((w: any, wi: number) => (
+                                                            <div
+                                                                key={wi}
+                                                                className="flex-1 rounded-t-sm transition-all"
+                                                                style={{
+                                                                    height: `${maxKm > 0 ? (w.km / maxKm) * 100 : 0}%`,
+                                                                    background: cfg.color,
+                                                                    opacity: w.isRecovery ? 0.28 : 0.75,
+                                                                    minWidth: 2,
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Phase legend sous le graphe */}
+                                        <div className="flex mt-2.5 gap-px">
+                                            {phaseGroups.map((group, gi) => {
+                                                const cfg = getPhaseConfig(group.phase);
+                                                return (
+                                                    <div
+                                                        key={gi}
+                                                        className="flex items-center justify-center gap-1 overflow-hidden"
+                                                        style={{ flex: group.weeks.length }}
+                                                    >
+                                                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
+                                                        <span className="text-[7px] font-black uppercase truncate" style={{ color: cfg.color }}>
+                                                            {cfg.label}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* ── Phase cards ─── */}
+                                {preview.phases && preview.phases.length > 0 && (
+                                    <div className="space-y-2">
+                                        {preview.phases.map((phase: any, i: number) => {
+                                            const cfg = getPhaseConfig(phase.name);
+                                            return (
+                                                <motion.div
+                                                    key={i}
+                                                    initial={{ opacity: 0, x: -6 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: 0.18 + i * 0.06, duration: 0.25 }}
+                                                    className="rounded-[16px] pl-4 pr-3 py-3 relative overflow-hidden flex items-center gap-3"
+                                                    style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
+                                                >
+                                                    <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full" style={{ background: cfg.color }} />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: cfg.color }}>
+                                                                {cfg.label}
+                                                            </span>
+                                                            <span className="text-sm font-black text-white">
+                                                                {phase.weeks}<span className="text-[9px] text-text-muted font-bold ml-0.5">sem</span>
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] text-text-muted font-medium mt-0.5 truncate">{cfg.desc}</p>
+                                                    </div>
+                                                    <div
+                                                        className="shrink-0 px-2 py-1 rounded-full text-[8px] font-black"
+                                                        style={{ background: `${cfg.color}15`, color: cfg.color }}
+                                                    >
+                                                        {cfg.zoneHint}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
                                     </div>
                                 )}
-                                <p className="text-[10px] text-text-muted leading-relaxed font-medium">
-                                    Plan personnalisé avec semaines d'assimilation et montée en charge progressive
-                                    basée sur tes {formData.currentWeeklyKm} km actuels.
-                                </p>
-                                <Zap size={100} className="absolute -bottom-8 -right-8 text-primary/5 -rotate-12 pointer-events-none" />
                             </div>
                         ) : (
                             <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-5 rounded-[22px] text-sm font-bold text-center">
@@ -261,6 +645,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                         )}
                     </div>
                 );
+            }
         }
     };
 

@@ -15,7 +15,7 @@ export function BottomNav() {
     const location = useLocation();
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pointer-events-none">
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pointer-events-none">
             <div className="safe-bottom max-w-md mx-auto pointer-events-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
                 <nav className="floating-nav-shell flex justify-around items-center h-[74px] px-2 rounded-[28px]">
                     {navItems.map((item) => {
