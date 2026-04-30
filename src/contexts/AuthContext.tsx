@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { api, setTokens, clearTokens, getAccessToken } from '../services/api';
+import {
+    api,
+    setTokens,
+    clearTokens,
+    getAccessToken,
+    refreshAccessToken,
+    shouldRefreshAccessToken,
+} from '../services/api';
 import {
     resolveAuthSession,
     type AuthResponsePayload,
@@ -82,7 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const checkAuth = async () => {
             const token = getAccessToken();
-            if (!token) {
+            const usableToken = shouldRefreshAccessToken(token)
+                ? await refreshAccessToken()
+                : token;
+
+            if (!usableToken) {
                 setIsLoading(false);
                 return;
             }
@@ -103,6 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const completeSession = async (accessToken: string, refreshToken?: string) => {
         setTokens(accessToken, refreshToken);
+        if (refreshToken) {
+            await refreshAccessToken(refreshToken);
+        }
         setUser(await fetchCurrentUser());
     };
 

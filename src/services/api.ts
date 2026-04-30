@@ -16,6 +16,7 @@ const ACCESS_TOKEN_KEY = 'runflow_access_token';
 
 let inMemoryAccessToken: string | null = null;
 let inMemoryRefreshToken: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
 
 interface TokenResponse {
     access_token?: string;
@@ -96,6 +97,37 @@ export const getAccessToken = () => {
     return storedToken;
 };
 
+const decodeJwtPayload = (token: string) => {
+    const [, payload] = token.split('.');
+    if (!payload) {
+        return null;
+    }
+
+    try {
+        const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const paddedPayload = normalizedPayload.padEnd(
+            normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+            '='
+        );
+        return JSON.parse(window.atob(paddedPayload)) as { exp?: unknown };
+    } catch {
+        return null;
+    }
+};
+
+export const shouldRefreshAccessToken = (token: string | null = getAccessToken(), leewaySeconds = 30) => {
+    if (!token) {
+        return true;
+    }
+
+    const payload = decodeJwtPayload(token);
+    if (typeof payload?.exp !== 'number') {
+        return true;
+    }
+
+    return payload.exp <= Math.floor(Date.now() / 1000) + leewaySeconds;
+};
+
 export const api = axios.create({
     baseURL: API_URL,
     timeout: 10000,
@@ -124,16 +156,28 @@ api.interceptors.response.use(
         const isRefreshRequest = requestUrl.includes('/auth/refresh');
 
         if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
-            if (!inMemoryRefreshToken) {
-                clearTokens();
-                return Promise.reject(error);
-            }
-
             originalRequest._retry = true;
 
-            try {
-                const refreshPayload = { refresh_token: inMemoryRefreshToken };
+            const accessToken = await refreshAccessToken();
+            if (accessToken) {
+                setAuthorizationHeader(originalRequest, accessToken);
+                return api(originalRequest);
+            }
 
+            return Promise.reject(error);
+        }
+
+        return Promise.reject(error);
+    }
+);
+
+export const refreshAccessToken = async (refreshToken?: string | null) => {
+    const tokenForBody = normalizeToken(refreshToken) ?? inMemoryRefreshToken;
+
+    if (!refreshPromise) {
+        refreshPromise = (async () => {
+            try {
+                const refreshPayload = tokenForBody ? { refresh_token: tokenForBody } : {};
                 const response = await axios.post<TokenResponse>(
                     `${API_URL}/auth/refresh`,
                     refreshPayload,
@@ -152,18 +196,18 @@ api.interceptors.response.use(
                 }
 
                 setTokens(access_token, refresh_token);
-                setAuthorizationHeader(originalRequest, access_token);
-
-                return api(originalRequest);
-            } catch (refreshError) {
+                return access_token;
+            } catch {
                 clearTokens();
-                return Promise.reject(refreshError);
+                return null;
+            } finally {
+                refreshPromise = null;
             }
-        }
-
-        return Promise.reject(error);
+        })();
     }
-);
+
+    return refreshPromise;
+};
 
 export const setTokens = (accessToken: string, refreshToken?: string) => {
     const normalizedAccessToken = normalizeToken(accessToken);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isAxiosError } from 'axios';
 import { ChevronLeft, Loader2, Calendar, Target, Activity, Zap, TrendingUp, Clock } from 'lucide-react';
 import { api } from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -71,6 +72,19 @@ interface PlanGeneratorProps {
 
 type GoalId = '5k' | '10k' | 'half_marathon' | 'marathon';
 type LevelId = 'beginner' | 'intermediate' | 'advanced';
+type TimingMode = 'race_date' | 'duration';
+
+interface ApiErrorPayload {
+    code?: string;
+    message?: string;
+    details?: unknown;
+    requestId?: string;
+}
+
+const MIN_PLAN_WEEKS = 6;
+const MAX_PLAN_WEEKS = 24;
+const DEFAULT_PLAN_WEEKS = 12;
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 const GOALS = [
     { id: '5k',            label: '5 KM',      icon: Zap,      desc: 'Rapide & intense' },
@@ -109,15 +123,80 @@ function optionalNumber(value: string) {
     return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function clampPlanWeeks(value: number) {
+    return Math.min(MAX_PLAN_WEEKS, Math.max(MIN_PLAN_WEEKS, Math.round(value || MIN_PLAN_WEEKS)));
+}
+
+function formatDateInput(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+function parseDateInput(value: string) {
+    if (!value) return null;
+    const date = new Date(`${value}T00:00:00`);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addWeeks(date: Date, weeks: number) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + weeks * 7);
+
+    return next;
+}
+
+function startOfToday() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return today;
+}
+
+function weeksUntilDate(targetDate: string) {
+    const target = parseDateInput(targetDate);
+    if (!target) return 0;
+
+    return Math.ceil((target.getTime() - startOfToday().getTime()) / MS_PER_WEEK);
+}
+
+function extractApiError(error: unknown): ApiErrorPayload {
+    if (!isAxiosError<ApiErrorPayload>(error)) {
+        return {};
+    }
+
+    return error.response?.data ?? {};
+}
+
+function buildPlanErrorMessage(error: unknown) {
+    const payload = extractApiError(error);
+    const backendMessage = payload.message?.trim();
+    const likelyAmbitiousPlan = payload.code === 'PREVIEW_ERROR' || payload.code === 'PLAN_GENERATION_ERROR';
+
+    return {
+        title: likelyAmbitiousPlan ? 'Objectif trop chaud.' : "Le moteur d'entraînement a calé.",
+        body: likelyAmbitiousPlan
+            ? "Le coach virtuel a sorti le carton prévention blessure. Avec ces paramètres, le plan demande une montée en charge un peu trop héroïque."
+            : "Impossible de préparer un aperçu propre pour le moment.",
+        hint: backendMessage
+            ? backendMessage
+            : 'Essaie une durée plus longue, une course plus courte, moins de séances, ou un volume actuel plus réaliste.',
+    };
+}
+
 export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         goal: 'half_marathon' as GoalId,
         level: 'intermediate' as LevelId,
-        durationWeeks: 12,
+        timingMode: 'race_date' as TimingMode,
+        durationWeeks: DEFAULT_PLAN_WEEKS,
         sessionsPerWeek: 4,
-        targetDate: new Date(Date.now() + 12 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        targetDate: formatDateInput(addWeeks(new Date(), DEFAULT_PLAN_WEEKS)),
         currentWeeklyKm: 30,
         recentRaceDistance: '' as '' | GoalId,
         raceHours: '',
@@ -129,6 +208,8 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
         maxHR: '',
     });
     const [preview, setPreview] = useState<any>(null);
+    const [previewError, setPreviewError] = useState<ReturnType<typeof buildPlanErrorMessage> | null>(null);
+    const [submitError, setSubmitError] = useState<ReturnType<typeof buildPlanErrorMessage> | null>(null);
 
     const buildRecentRaceTime = () => {
         if (!formData.recentRaceDistance) return undefined;
@@ -146,14 +227,13 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     };
 
     const buildUserData = () => {
-        const userData: Record<string, unknown> = {
-            currentWeeklyKm: formData.currentWeeklyKm,
-        };
+        const userData: Record<string, unknown> = {};
         const recentRaceTime = buildRecentRaceTime();
         const age = optionalNumber(formData.age);
         const restingHR = optionalNumber(formData.restingHR);
         const maxHR = optionalNumber(formData.maxHR);
 
+        if (formData.currentWeeklyKm > 0) userData.currentWeeklyKm = formData.currentWeeklyKm;
         if (recentRaceTime) userData.recentRaceTime = recentRaceTime;
         if (formData.availableDays.length > 0) userData.availableDays = formData.availableDays;
         if (age !== undefined) userData.age = age;
@@ -163,12 +243,55 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
         return userData;
     };
 
+    const resolveSchedule = () => {
+        if (formData.timingMode === 'duration') {
+            const durationWeeks = clampPlanWeeks(formData.durationWeeks);
+
+            return {
+                durationWeeks,
+                targetDate: formatDateInput(addWeeks(startOfToday(), durationWeeks)),
+            };
+        }
+
+        return {
+            durationWeeks: clampPlanWeeks(weeksUntilDate(formData.targetDate)),
+            targetDate: formData.targetDate,
+        };
+    };
+
+    const getTimingError = () => {
+        if (formData.timingMode === 'duration') {
+            if (formData.durationWeeks < MIN_PLAN_WEEKS || formData.durationWeeks > MAX_PLAN_WEEKS) {
+                return `Choisis une durée entre ${MIN_PLAN_WEEKS} et ${MAX_PLAN_WEEKS} semaines.`;
+            }
+
+            return null;
+        }
+
+        const targetDate = parseDateInput(formData.targetDate);
+        if (!targetDate) return 'Choisis une date de course.';
+
+        const weeks = weeksUntilDate(formData.targetDate);
+        if (weeks < MIN_PLAN_WEEKS) {
+            return `La date cible doit laisser au moins ${MIN_PLAN_WEEKS} semaines de préparation.`;
+        }
+        if (weeks > MAX_PLAN_WEEKS) {
+            return `La date cible ne peut pas dépasser ${MAX_PLAN_WEEKS} semaines de préparation.`;
+        }
+
+        return null;
+    };
+
+    const schedule = resolveSchedule();
+    const timingError = getTimingError();
+    const canContinue = step !== 3 || !timingError;
+
     const buildTrainingPayload = () => ({
         goal: formData.goal,
         level: formData.level,
-        durationWeeks: Math.min(24, Math.max(6, formData.durationWeeks || 6)),
+        durationWeeks: schedule.durationWeeks,
         sessionsPerWeek: formData.sessionsPerWeek,
-        targetDate: formData.targetDate,
+        targetDate: schedule.targetDate,
         userData: buildUserData(),
     });
 
@@ -183,10 +306,14 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
 
     const fetchPreview = async () => {
         setLoading(true);
+        setPreview(null);
+        setPreviewError(null);
+        setSubmitError(null);
         try {
             const res = await api.post('/training/preview', buildTrainingPayload());
             setPreview(res.data?.preview ?? res.data);
         } catch (error) {
+            setPreviewError(buildPlanErrorMessage(error));
             console.error('Failed to fetch preview', error);
         } finally {
             setLoading(false);
@@ -194,17 +321,22 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     };
 
     const handleNext = () => {
+        if (!canContinue) return;
         if (step === 3) fetchPreview();
         setStep(s => s + 1);
     };
     const handleBack = () => setStep(s => s - 1);
 
     const handleSubmit = async () => {
+        if (!preview || previewError) return;
+
         setLoading(true);
+        setSubmitError(null);
         try {
             await api.post('/training/generate', buildTrainingPayload(), { timeout: 120000 });
             onPlanGenerated();
         } catch (error) {
+            setSubmitError(buildPlanErrorMessage(error));
             console.error('Failed to generate plan', error);
         } finally {
             setLoading(false);
@@ -369,50 +501,127 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                     </div>
                 );
 
-            /* ── Étape 3 : Date ─────────────────────────────── */
+            /* ── Étape 3 : Cadre du plan ───────────────────── */
             case 3:
                 return (
                     <div className="space-y-6">
                         <div>
-                            <h2 className="text-2xl font-black tracking-tight mb-1">Paramètres du plan</h2>
-                            <p className="text-text-muted text-sm">Tous les paramètres acceptés par le moteur backend.</p>
+                            <h2 className="text-2xl font-black tracking-tight mb-1">Cadre du plan</h2>
+                            <p className="text-text-muted text-sm">Course datée ou cycle d'entraînement.</p>
                         </div>
 
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="glass-card rounded-[22px] p-5">
-                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
-                                        Durée
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                        <Clock size={18} className="text-primary shrink-0" />
-                                        <input
-                                            type="number"
-                                            min="6"
-                                            max="24"
-                                            value={formData.durationWeeks === 0 ? '' : formData.durationWeeks}
-                                            onChange={e => setFormData({ ...formData, durationWeeks: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                            className="w-full glass-hero rounded-2xl py-3 px-3 text-base font-black text-center focus:outline-none focus:border-primary/50 transition-all"
-                                        />
-                                    </div>
-                                    <p className="text-[9px] text-text-muted font-bold mt-3">6 à 24 semaines</p>
-                                </div>
+                            <div className="glass-card rounded-[22px] p-5">
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                    Calendrier
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { id: 'race_date' as TimingMode, label: 'Course cible', desc: 'Date connue', icon: Calendar },
+                                        { id: 'duration' as TimingMode, label: 'Durée libre', desc: 'Cycle simple', icon: Clock },
+                                    ].map(option => {
+                                        const isSelected = formData.timingMode === option.id;
+                                        const Icon = option.icon;
 
+                                        return (
+                                            <button
+                                                key={option.id}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, timingMode: option.id })}
+                                                className={`rounded-2xl px-3 py-3 text-left transition-all ${
+                                                    isSelected
+                                                        ? 'bg-primary text-white scale-[1.02]'
+                                                        : 'glass-hero text-text-muted hover:text-white'
+                                                }`}
+                                                style={isSelected ? { boxShadow: '0 4px 16px rgba(90,178,255,0.35)' } : {}}
+                                            >
+                                                <div className="flex items-center gap-2 mb-1.5">
+                                                    <Icon size={15} />
+                                                    <span className="text-xs font-black leading-tight">{option.label}</span>
+                                                </div>
+                                                <div className={`text-[8px] font-bold ${isSelected ? 'text-white/75' : 'text-text-muted'}`}>
+                                                    {option.desc}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {formData.timingMode === 'race_date' ? (
                                 <div className="glass-card rounded-[22px] p-5">
-                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
-                                        Date cible
-                                    </label>
+                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                        <label className="text-[10px] font-black text-text-muted uppercase tracking-widest block">
+                                            Date de course
+                                        </label>
+                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">
+                                            {schedule.durationWeeks} sem.
+                                        </span>
+                                    </div>
                                     <div className="relative">
                                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" size={16} />
                                         <input
                                             type="date"
+                                            min={formatDateInput(addWeeks(startOfToday(), MIN_PLAN_WEEKS))}
+                                            max={formatDateInput(addWeeks(startOfToday(), MAX_PLAN_WEEKS))}
                                             value={formData.targetDate}
                                             onChange={e => setFormData({ ...formData, targetDate: e.target.value })}
-                                            className="w-full glass-hero rounded-2xl py-3 pl-10 pr-2 text-xs font-black focus:outline-none focus:border-primary/50 transition-all"
+                                            className="w-full glass-hero rounded-2xl py-3 pl-10 pr-3 text-sm font-black focus:outline-none focus:border-primary/50 transition-all"
                                         />
                                     </div>
+                                    <p className="text-[9px] text-text-muted font-bold mt-3">
+                                        Préparation calculée automatiquement entre {MIN_PLAN_WEEKS} et {MAX_PLAN_WEEKS} semaines.
+                                    </p>
+                                    {timingError && <p className="text-[10px] text-danger font-bold mt-3">{timingError}</p>}
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="glass-card rounded-[22px] p-5">
+                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                        <label className="text-[10px] font-black text-text-muted uppercase tracking-widest block">
+                                            Durée du plan
+                                        </label>
+                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">
+                                            Fin {new Date(`${schedule.targetDate}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Clock size={18} className="text-primary shrink-0" />
+                                        <input
+                                            type="number"
+                                            min={MIN_PLAN_WEEKS}
+                                            max={MAX_PLAN_WEEKS}
+                                            value={formData.durationWeeks === 0 ? '' : formData.durationWeeks}
+                                            onChange={e => setFormData({ ...formData, durationWeeks: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                            className="w-24 glass-hero rounded-2xl py-3 px-3 text-lg font-black text-center focus:outline-none focus:border-primary/50 transition-all"
+                                        />
+                                        <input
+                                            type="range"
+                                            min={MIN_PLAN_WEEKS}
+                                            max={MAX_PLAN_WEEKS}
+                                            value={clampPlanWeeks(formData.durationWeeks)}
+                                            onChange={e => setFormData({ ...formData, durationWeeks: Number(e.target.value) })}
+                                            className="min-w-0 flex-1 accent-primary"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2 mt-4">
+                                        {[8, 12, 16, 20].map(weeks => (
+                                            <button
+                                                key={weeks}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, durationWeeks: weeks })}
+                                                className={`py-2.5 rounded-2xl text-[10px] font-black transition-all ${
+                                                    formData.durationWeeks === weeks
+                                                        ? 'bg-primary text-white'
+                                                        : 'glass-hero text-text-muted hover:text-white'
+                                                }`}
+                                            >
+                                                {weeks} sem.
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {timingError && <p className="text-[10px] text-danger font-bold mt-3">{timingError}</p>}
+                                </div>
+                            )}
 
                             <div className="glass-card rounded-[22px] p-5">
                                 <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
@@ -421,7 +630,13 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                 <div className="grid grid-cols-4 gap-2">
                                     <select
                                         value={formData.recentRaceDistance}
-                                        onChange={e => setFormData({ ...formData, recentRaceDistance: e.target.value as '' | GoalId })}
+                                        onChange={e => setFormData({
+                                            ...formData,
+                                            recentRaceDistance: e.target.value as '' | GoalId,
+                                            raceHours: e.target.value === '' ? '' : formData.raceHours,
+                                            raceMinutes: e.target.value === '' ? '' : formData.raceMinutes,
+                                            raceSeconds: e.target.value === '' ? '' : formData.raceSeconds,
+                                        })}
                                         className="col-span-4 glass-hero rounded-2xl px-3 py-3 text-sm font-black focus:outline-none focus:border-primary/50 transition-all"
                                     >
                                         {RACE_DISTANCES.map(distance => (
@@ -440,8 +655,9 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                             max={field.key === 'raceHours' ? '12' : '59'}
                                             placeholder={field.label}
                                             value={formData[field.key as 'raceHours' | 'raceMinutes' | 'raceSeconds']}
+                                            disabled={!formData.recentRaceDistance}
                                             onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
-                                            className="glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all"
+                                            className="glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center placeholder:text-text-muted/50 focus:outline-none focus:border-primary/50 transition-all disabled:opacity-40"
                                         />
                                     ))}
                                     <div className="glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center text-text-muted">
@@ -455,7 +671,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
 
                             <div className="glass-card rounded-[22px] p-5">
                                 <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
-                                    Jours disponibles
+                                    Jours préférés <span className="text-text-muted/40 normal-case tracking-normal">(optionnel)</span>
                                 </label>
                                 <div className="grid grid-cols-7 gap-1.5">
                                     {WEEK_DAYS.map(day => {
@@ -511,6 +727,20 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                             </div>
                         ) : preview ? (
                             <div className="space-y-3">
+                                {submitError && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="rounded-[22px] p-5 border border-amber-400/20 bg-amber-400/10"
+                                    >
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-300 mb-2">
+                                            Ajustement nécessaire
+                                        </p>
+                                        <h3 className="text-lg font-black text-white mb-1">{submitError.title}</h3>
+                                        <p className="text-sm font-bold text-text-muted leading-relaxed">{submitError.body}</p>
+                                        <p className="text-xs font-bold text-amber-200/80 leading-relaxed mt-3">{submitError.hint}</p>
+                                    </motion.div>
+                                )}
 
                                 {/* ── Stats ─── */}
                                 <motion.div
@@ -639,9 +869,55 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                 )}
                             </div>
                         ) : (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-5 rounded-[22px] text-sm font-bold text-center">
-                                Échec de la génération de l'aperçu. Réessaie.
-                            </div>
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="rounded-[28px] p-6 border border-amber-400/20 bg-amber-400/10 text-left"
+                            >
+                                <div className="w-12 h-12 rounded-2xl bg-amber-400/15 border border-amber-300/20 flex items-center justify-center mb-5">
+                                    <Activity size={24} className="text-amber-300" />
+                                </div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-300 mb-2">
+                                    Risque blessure détecté
+                                </p>
+                                <h3 className="text-xl font-black text-white tracking-tight mb-2">
+                                    {previewError?.title ?? 'Objectif trop chaud.'}
+                                </h3>
+                                <p className="text-sm font-bold text-text-muted leading-relaxed">
+                                    {previewError?.body ?? "Le coach virtuel a sorti le carton prévention blessure. Avec ces paramètres, le plan demande une montée en charge un peu trop héroïque."}
+                                </p>
+                                <p className="text-xs font-bold text-amber-200/80 leading-relaxed mt-4">
+                                    {previewError?.hint ?? 'Allonge la durée, baisse la distance cible ou pars d’un volume hebdo plus proche de ta réalité.'}
+                                </p>
+                                <div className="grid grid-cols-3 gap-2 mt-5">
+                                    {[
+                                        {
+                                            label: '+ semaines',
+                                            action: () => {
+                                                setFormData({ ...formData, timingMode: 'duration', durationWeeks: Math.min(MAX_PLAN_WEEKS, schedule.durationWeeks + 4) });
+                                                setStep(3);
+                                            },
+                                        },
+                                        {
+                                            label: 'moins loin',
+                                            action: () => {
+                                                setFormData({ ...formData, goal: formData.goal === 'marathon' ? 'half_marathon' : formData.goal === 'half_marathon' ? '10k' : '5k' });
+                                                setStep(1);
+                                            },
+                                        },
+                                        { label: 'volume réel', action: () => setStep(2) },
+                                    ].map(action => (
+                                        <button
+                                            key={action.label}
+                                            type="button"
+                                            onClick={action.action}
+                                            className="rounded-2xl bg-white/6 border border-white/10 px-2 py-3 text-[10px] font-black text-white hover:bg-white/10 transition-colors"
+                                        >
+                                            {action.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </motion.div>
                         )}
                     </div>
                 );
@@ -679,19 +955,30 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                 {step < 4 ? (
                     <button
                         onClick={handleNext}
-                        className="btn-primary flex-1 h-14 text-sm font-black"
+                        disabled={!canContinue}
+                        className="btn-primary flex-1 h-14 text-sm font-black disabled:opacity-50 disabled:active:scale-100"
                     >
                         Continuer
                     </button>
                 ) : (
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="btn-primary flex-1 h-14 text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                        {loading && <Loader2 size={18} className="animate-spin" />}
-                        {loading ? 'Génération en cours…' : 'Valider ce plan'}
-                    </button>
+                    preview ? (
+                        <button
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="btn-primary flex-1 h-14 text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {loading && <Loader2 size={18} className="animate-spin" />}
+                            {loading ? 'Génération en cours…' : 'Valider ce plan'}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setStep(3)}
+                            disabled={loading}
+                            className="btn-primary flex-1 h-14 text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            Modifier les réglages
+                        </button>
+                    )
                 )}
             </div>
         </div>
