@@ -264,7 +264,7 @@ export function Profile() {
                         <h3 className="text-sm font-bold text-text-muted mb-3">Préférences</h3>
                         <div className="glass-card rounded-[22px] overflow-hidden divide-y divide-white/5">
                             {[
-                                { icon: Heart, label: 'Zones cardiaques', path: null },
+                                { icon: Heart, label: 'Zones & Allures', path: '/zones' },
                                 { icon: Smartphone, label: 'Apparence', path: null },
                                 { icon: Bell, label: 'Notifications', path: '/notifications' },
                                 { icon: ShieldCheck, label: 'Confidentialité', path: null },
