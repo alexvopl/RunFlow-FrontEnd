@@ -206,6 +206,8 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
         age: '',
         restingHR: '',
         maxHR: '',
+        aerobicThresholdHR: '',
+        lactateThresholdHR: '',
     });
     const [preview, setPreview] = useState<any>(null);
     const [previewError, setPreviewError] = useState<ReturnType<typeof buildPlanErrorMessage> | null>(null);
@@ -232,6 +234,8 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
         const age = optionalNumber(formData.age);
         const restingHR = optionalNumber(formData.restingHR);
         const maxHR = optionalNumber(formData.maxHR);
+        const aerobicThresholdHR = optionalNumber(formData.aerobicThresholdHR);
+        const lactateThresholdHR = optionalNumber(formData.lactateThresholdHR);
 
         if (formData.currentWeeklyKm > 0) userData.currentWeeklyKm = formData.currentWeeklyKm;
         if (recentRaceTime) userData.recentRaceTime = recentRaceTime;
@@ -239,8 +243,30 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
         if (age !== undefined) userData.age = age;
         if (restingHR !== undefined) userData.restingHR = restingHR;
         if (maxHR !== undefined) userData.maxHR = maxHR;
+        if (aerobicThresholdHR !== undefined) userData.aerobicThresholdHR = aerobicThresholdHR;
+        if (lactateThresholdHR !== undefined) userData.lactateThresholdHR = lactateThresholdHR;
 
         return userData;
+    };
+
+    const syncFitnessProfile = async () => {
+        const recentRaceTime = buildRecentRaceTime();
+        const profile: Record<string, unknown> = { level: formData.level };
+        const age = optionalNumber(formData.age);
+        const restingHR = optionalNumber(formData.restingHR);
+        const maxHR = optionalNumber(formData.maxHR);
+        const aerobicThresholdHR = optionalNumber(formData.aerobicThresholdHR);
+        const lactateThresholdHR = optionalNumber(formData.lactateThresholdHR);
+
+        if (age !== undefined) profile.age = age;
+        if (restingHR !== undefined) profile.restingHR = restingHR;
+        if (maxHR !== undefined) profile.maxHR = maxHR;
+        if (aerobicThresholdHR !== undefined) profile.aerobicThresholdHR = aerobicThresholdHR;
+        if (lactateThresholdHR !== undefined) profile.lactateThresholdHR = lactateThresholdHR;
+        // recentRace (not recentRaceTime) is the field name in UserFitnessProfile
+        if (recentRaceTime) profile.recentRace = recentRaceTime;
+
+        try { await api.put('/training/zones', profile); } catch { /* silent — non-blocking */ }
     };
 
     const resolveSchedule = () => {
@@ -334,6 +360,7 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
         setSubmitError(null);
         try {
             await api.post('/training/generate', buildTrainingPayload(), { timeout: 120000 });
+            await syncFitnessProfile();
             onPlanGenerated();
         } catch (error) {
             setSubmitError(buildPlanErrorMessage(error));
@@ -472,10 +499,13 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
 
                             {/* Données cardio */}
                             <div className="glass-card rounded-[22px] p-5">
-                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-4 block">
+                                <label className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-1 block">
                                     Données cardio <span className="text-text-muted/40 normal-case tracking-normal">(optionnel)</span>
                                 </label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <p className="text-[9px] text-text-muted/60 mb-3 leading-relaxed">
+                                    Plus tu fournis de données, plus les zones et allures sont précises.
+                                </p>
+                                <div className="grid grid-cols-3 gap-2 mb-2">
                                     {[
                                         { key: 'age', label: 'Âge', min: 10, max: 100 },
                                         { key: 'restingHR', label: 'FC repos', min: 30, max: 100 },
@@ -492,6 +522,28 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
                                                 value={formData[field.key as 'age' | 'restingHR' | 'maxHR']}
                                                 onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
                                                 className="w-full glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center focus:outline-none focus:border-primary/50 transition-all"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { key: 'aerobicThresholdHR', label: 'Seuil aérobie', hint: 'AeT bpm', min: 80, max: 210 },
+                                        { key: 'lactateThresholdHR', label: 'Seuil lactique', hint: 'LT2 bpm', min: 80, max: 220 },
+                                    ].map(field => (
+                                        <div key={field.key}>
+                                            <span className="text-[8px] font-black text-text-muted uppercase tracking-widest mb-1.5 block">
+                                                {field.label}
+                                                <span className="ml-1 text-[7px] font-bold text-primary/50 normal-case tracking-normal">avancé</span>
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min={field.min}
+                                                max={field.max}
+                                                placeholder={field.hint}
+                                                value={formData[field.key as 'aerobicThresholdHR' | 'lactateThresholdHR']}
+                                                onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
+                                                className="w-full glass-hero rounded-2xl px-3 py-3 text-sm font-black text-center placeholder:text-text-muted/30 focus:outline-none focus:border-primary/50 transition-all"
                                             />
                                         </div>
                                     ))}

@@ -109,6 +109,7 @@ export function TrainingZones() {
     const [tab, setTab] = useState<'zones' | 'paces' | 'edit'>('zones');
     const [paces, setPaces] = useState<any>(location.state?.paces ?? null);
     const [profile, setProfile] = useState<any>(null);
+    const [source, setSource] = useState<string | null>(null);
     const [loading, setLoading] = useState(!location.state?.paces);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -137,6 +138,7 @@ export function TrainingZones() {
             const res = await api.get('/training/zones');
             setPaces(res.data.paces);
             setProfile(res.data.profile);
+            setSource(res.data.source ?? null);
             prefillForm(res.data.profile);
         } catch {
             // Fallback: load from active plan
@@ -161,9 +163,9 @@ export function TrainingZones() {
         if (p.restingHR) setRestingHR(String(p.restingHR));
         if (p.aerobicThresholdHR) setAetHR(String(p.aerobicThresholdHR));
         if (p.lactateThresholdHR) setLt2HR(String(p.lactateThresholdHR));
-        if (p.recentRaceTime) {
-            setRaceDistance(p.recentRaceTime.distance);
-            setRaceTime(fmtRaceTime(p.recentRaceTime.timeSeconds));
+        if (p.recentRace) {
+            setRaceDistance(p.recentRace.distance);
+            setRaceTime(fmtRaceTime(p.recentRace.timeSeconds));
         }
     };
 
@@ -182,11 +184,12 @@ export function TrainingZones() {
             if (restingHR) body.restingHR = Number(restingHR);
             if (aetHR) body.aerobicThresholdHR = Number(aetHR);
             if (lt2HR) body.lactateThresholdHR = Number(lt2HR);
-            if (timeSec) body.recentRaceTime = { distance: raceDistance, timeSeconds: timeSec };
+            if (timeSec) body.recentRace = { distance: raceDistance, timeSeconds: timeSec };
 
             const res = await api.put('/training/zones', body);
             setPaces(res.data.paces);
             setProfile(res.data.profile);
+            setSource(res.data.source ?? null);
             setSaved(true);
             setTimeout(() => setSaved(false), 2500);
             setTab('zones');
@@ -217,7 +220,19 @@ export function TrainingZones() {
                     </button>
                     <div className="flex-1">
                         <h1 className="text-xl font-black tracking-tight text-white leading-none">Zones & Allures</h1>
-                        <p className="text-text-muted text-xs mt-0.5">Profil athlète personnalisé</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-text-muted text-xs">Profil athlète personnalisé</p>
+                            {source && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
+                                    <div className="w-1.5 h-1.5 rounded-full" style={{
+                                        background: source === 'race' ? '#fbbf24' : source === 'hr' ? '#ef4444' : '#64748b'
+                                    }} />
+                                    <span className="text-[7px] font-black uppercase tracking-widest text-text-muted">
+                                        {source === 'race' ? 'Course' : source === 'hr' ? 'FC' : 'Défaut'}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     {paces?.vdot && (
                         <div className="glass-card rounded-2xl px-3 py-2 text-center">

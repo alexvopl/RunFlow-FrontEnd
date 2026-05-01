@@ -579,6 +579,11 @@ export function Training() {
                         </button>
                     </div>
 
+                    {/* Readiness check — only shown for current/upcoming week with intensity sessions */}
+                    {viewedWeek >= currentWeek && viewedWeekData?.readinessCheck?.intensitySessions > 0 && (
+                        <ReadinessCheck check={viewedWeekData.readinessCheck} week={viewedWeek} />
+                    )}
+
                     {/* 7-day tiles */}
                     <motion.div
                         initial={{ opacity: 0, y: 12 }}
@@ -987,6 +992,11 @@ function WorkoutCard({
                     </div>
                 )}
 
+                {/* ── Recalibration ── */}
+                {workout.recalibration && (
+                    <RecalibrationBadge recalibration={workout.recalibration} />
+                )}
+
                 {/* ── CTA ── */}
                 <button
                     onClick={onStart}
@@ -1040,19 +1050,23 @@ function ZoneBar({ activeZone, hrRange, paces }: { activeZone: string; hrRange: 
                     );
                 })}
             </div>
-            {(hrRange || zoneCfg) && (
-                <div className="flex items-center gap-2">
-                    <Heart size={10} className="shrink-0" style={{ color: ZONE_CONFIG[activeZone as keyof typeof ZONE_CONFIG]?.color ?? '#5ab2ff' }} />
-                    <span className="text-[10px] font-black" style={{ color: ZONE_CONFIG[activeZone as keyof typeof ZONE_CONFIG]?.color ?? '#5ab2ff' }}>
-                        {ZONE_CONFIG[activeZone as keyof typeof ZONE_CONFIG]?.fullLabel}
-                    </span>
-                    {hrRange?.min && hrRange?.max && (
-                        <span className="text-[10px] text-text-muted font-medium">
-                            · {hrRange.min}–{hrRange.max} bpm
+            {(() => {
+                const cfg = ZONE_CONFIG[activeZone as keyof typeof ZONE_CONFIG];
+                if (!hrRange && !cfg) return null;
+                return (
+                    <div className="flex items-center gap-2">
+                        <Heart size={10} className="shrink-0" style={{ color: cfg?.color ?? '#5ab2ff' }} />
+                        <span className="text-[10px] font-black" style={{ color: cfg?.color ?? '#5ab2ff' }}>
+                            {cfg?.fullLabel}
                         </span>
-                    )}
-                </div>
-            )}
+                        {hrRange?.min && hrRange?.max && (
+                            <span className="text-[10px] text-text-muted font-medium">
+                                · {hrRange.min}–{hrRange.max} bpm
+                            </span>
+                        )}
+                    </div>
+                );
+            })()}
         </button>
     );
 }
@@ -1182,6 +1196,140 @@ function StatChip({ icon: Icon, value, accent }: { icon: React.ElementType; valu
             <Icon size={10} className="text-text-muted shrink-0" style={accent ? { color: accent } : undefined} />
             <span className="text-[10px] font-bold text-white/80">{value}</span>
         </div>
+    );
+}
+
+// ─── Readiness check ─────────────────────────────────────────────────────────
+
+function ReadinessCheck({ check, week }: { check: any; week: number }) {
+    const [selected, setSelected] = useState<'green' | 'amber' | 'red' | null>(null);
+    const [dismissed, setDismissed] = useState(false);
+
+    if (dismissed) return null;
+
+    const selectedOption = check.options?.find((o: any) => o.value === selected);
+    const OPTION_STYLE: Record<string, { color: string; bg: string }> = {
+        green: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
+        amber: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+        red:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+    };
+
+    return (
+        <motion.div
+            key={week}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="mb-3 glass-card rounded-[20px] p-4"
+            style={{ borderLeftWidth: 2, borderLeftStyle: 'solid', borderLeftColor: selectedOption ? OPTION_STYLE[selected!]?.color : '#5ab2ff40' }}
+        >
+            <div className="flex items-start justify-between gap-3 mb-3">
+                <p className="text-xs text-white/70 leading-relaxed flex-1">{check.prompt}</p>
+                <button onClick={() => setDismissed(true)} className="text-text-muted/30 hover:text-text-muted/70 transition-colors shrink-0 mt-0.5">
+                    <ChevronRight size={12} className="rotate-[-90deg]" />
+                </button>
+            </div>
+            <div className="flex gap-2">
+                {check.options?.map((opt: any) => {
+                    const style = OPTION_STYLE[opt.value] ?? { color: '#5ab2ff', bg: 'rgba(90,178,255,0.12)' };
+                    const isSelected = selected === opt.value;
+                    return (
+                        <button
+                            key={opt.value}
+                            onClick={() => setSelected(isSelected ? null : opt.value)}
+                            className="flex-1 py-2 rounded-xl text-[10px] font-black transition-all border"
+                            style={{
+                                color: style.color,
+                                borderColor: isSelected ? `${style.color}60` : `${style.color}20`,
+                                background: isSelected ? style.bg : 'transparent',
+                            }}
+                        >
+                            {opt.label}
+                        </button>
+                    );
+                })}
+            </div>
+            {selectedOption && (
+                <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="text-[10px] text-text-muted mt-2.5 leading-relaxed overflow-hidden"
+                >
+                    {selectedOption.action}
+                </motion.p>
+            )}
+        </motion.div>
+    );
+}
+
+// ─── Recalibration badge ──────────────────────────────────────────────────────
+
+const RECAL_CONFIG: Record<string, { color: string; label: string }> = {
+    aet:        { color: '#22d3ee', label: 'Calibration AeT' },
+    lt2:        { color: '#f97316', label: 'Calibration LT2' },
+    vdot:       { color: '#5ab2ff', label: 'Test VDOT' },
+    decoupling: { color: '#fbbf24', label: 'Découplage' },
+};
+
+function RecalibrationBadge({ recalibration }: { recalibration: any }) {
+    const navigate = useNavigate();
+    const [open, setOpen] = useState(false);
+    const cfg = RECAL_CONFIG[recalibration.metric] ?? { color: '#5ab2ff', label: 'Calibration' };
+
+    return (
+        <button
+            onClick={() => setOpen(o => !o)}
+            className="w-full text-left p-3 rounded-2xl border transition-all"
+            style={{
+                background: `${cfg.color}08`,
+                borderColor: `${cfg.color}${open ? '35' : '18'}`,
+            }}
+        >
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <BarChart2 size={12} style={{ color: cfg.color }} />
+                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: cfg.color }}>
+                        {cfg.label}
+                    </span>
+                </div>
+                <ChevronRight size={11} className={clsx('transition-transform', open && 'rotate-90')}
+                    style={{ color: `${cfg.color}60` }} />
+            </div>
+            <AnimatePresence>
+                {open && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="mt-2.5 space-y-1.5">
+                            {recalibration.protocol?.map((step: string, i: number) => (
+                                <div key={i} className="flex gap-2 items-start">
+                                    <span className="text-[8px] font-black mt-0.5 shrink-0 tabular-nums" style={{ color: `${cfg.color}80` }}>
+                                        {i + 1}.
+                                    </span>
+                                    <p className="text-[10px] text-text-muted leading-snug">{step}</p>
+                                </div>
+                            ))}
+                            {recalibration.expectedOutcome && (
+                                <p className="text-[9px] text-text-muted/60 leading-relaxed pt-1 border-t border-white/[0.06]">
+                                    {recalibration.expectedOutcome}
+                                </p>
+                            )}
+                        </div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); navigate('/zones'); }}
+                            className="mt-2.5 text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
+                            style={{ color: cfg.color }}
+                        >
+                            Voir mes zones <ChevronRight size={9} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </button>
     );
 }
 
