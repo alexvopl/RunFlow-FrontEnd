@@ -18,6 +18,7 @@ import { AuthCallback } from './pages/auth/AuthCallback';
 import { StravaCallback } from './pages/StravaCallback';
 import { LiveWorkout } from './pages/LiveWorkout';
 import { TrainingZones } from './pages/TrainingZones';
+import { Equipment } from './pages/Equipment';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
               <Route path="/strava/callback" element={<StravaCallback />} />
               <Route path="/workout" element={<LiveWorkout />} />
               <Route path="/zones" element={<TrainingZones />} />
+              <Route path="/equipment" element={<Equipment />} />
             </Route>
           </Route>
         </Routes>

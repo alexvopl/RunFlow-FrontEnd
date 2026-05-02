@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, Heart, TrendingUp, Info,
-    Zap, Save, Loader2, RefreshCw, Trophy, Flag, Check,
+    Zap, Loader2, RefreshCw, Trophy, Flag, Check,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../services/api';
@@ -108,7 +108,6 @@ export function TrainingZones() {
     const location = useLocation();
     const [tab, setTab] = useState<'zones' | 'paces' | 'edit'>('zones');
     const [paces, setPaces] = useState<any>(location.state?.paces ?? null);
-    const [profile, setProfile] = useState<any>(null);
     const [source, setSource] = useState<string | null>(null);
     const [loading, setLoading] = useState(!location.state?.paces);
     const [saving, setSaving] = useState(false);
@@ -137,7 +136,7 @@ export function TrainingZones() {
             // Try dedicated endpoint first
             const res = await api.get('/training/zones');
             setPaces(res.data.paces);
-            setProfile(res.data.profile);
+            
             setSource(res.data.source ?? null);
             prefillForm(res.data.profile);
         } catch {
@@ -188,7 +187,7 @@ export function TrainingZones() {
 
             const res = await api.put('/training/zones', body);
             setPaces(res.data.paces);
-            setProfile(res.data.profile);
+            
             setSource(res.data.source ?? null);
             setSaved(true);
             setTimeout(() => setSaved(false), 2500);

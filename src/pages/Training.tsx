@@ -866,7 +866,7 @@ function WorkoutCard({
 
     // HR info: prefer workout.targetHeartRate, then look up zone from paces
     const zoneKey = workout.zone as keyof typeof ZONE_CONFIG | undefined;
-    const zoneCfg = zoneKey ? ZONE_CONFIG[zoneKey] : null;
+    void (zoneKey ? ZONE_CONFIG[zoneKey] : null); // zone config reserved for future use
     const hrRange = workout.targetHeartRate ?? (zoneKey ? paces?.zones?.[zoneKey] : null);
 
     // Group segments for display
@@ -1073,10 +1073,10 @@ function ZoneBar({ activeZone, hrRange, paces }: { activeZone: string; hrRange: 
 
 // ─── Segment row ──────────────────────────────────────────────────────────────
 
-function SegmentRow({ segment, segType, isFirst, isLast }: {
+function SegmentRow({ segment, segType, isLast }: {
     segment: any;
     segType: keyof typeof SEGMENT_STYLE;
-    isFirst: boolean;
+    isFirst?: boolean;
     isLast: boolean;
 }) {
     const cfg = SEGMENT_STYLE[segType] ?? SEGMENT_STYLE.main;

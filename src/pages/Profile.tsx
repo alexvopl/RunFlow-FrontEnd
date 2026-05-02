@@ -244,8 +244,16 @@ export function Profile() {
                     <div>
                         <h3 className="text-sm font-bold text-text-muted mb-3">Mon compte</h3>
                         <div className="glass-card rounded-[22px] overflow-hidden divide-y divide-white/5">
+                            {/* Mon équipement — actif */}
+                            <button onClick={() => navigate('/equipment')}
+                                className="w-full p-4 flex items-center gap-3 hover:bg-white/4 transition-colors group text-left">
+                                <div className="w-9 h-9 bg-white/5 rounded-xl flex items-center justify-center text-text-muted group-hover:text-white group-hover:bg-white/10 transition-colors">
+                                    <Footprints size={16} />
+                                </div>
+                                <span className="flex-1 text-sm font-bold">Mon équipement</span>
+                                <ChevronRight size={14} className="text-text-muted/30" />
+                            </button>
                             {[
-                                { icon: Footprints, label: 'Mon équipement' },
                                 { icon: ShoppingBag, label: 'Mes offres' },
                                 { icon: Gift, label: 'Programme de parrainage' },
                             ].map((item, i) => (
