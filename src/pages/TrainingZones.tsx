@@ -7,55 +7,10 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../services/api';
+import { ZONE_CONFIG, ZONE_LIST, PACE_ZONES } from '../constants/zones';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const ZONE_DATA = [
-    {
-        key: 'z1', num: 1, color: '#64748b', name: 'Récupération',
-        pct: '< 70%',
-        tip: 'Tu peux parler en phrases complètes sans effort.',
-        desc: 'La zone de régénération. Idéale pour les footings de récupération le lendemain d\'une séance dure. Le corps élimine les déchets métaboliques et reconstitue les réserves.',
-        trainingUse: 'Footings de récupération, entre les intervalles',
-    },
-    {
-        key: 'z2', num: 2, color: '#22c55e', name: 'Endurance aérobie',
-        pct: '70–80%',
-        tip: 'Tu peux tenir une conversation sans problème.',
-        desc: 'Le moteur de base — 80% de ton entraînement devrait être ici. Le corps brûle principalement les graisses et développe l\'infrastructure aérobie : capillaires, mitochondries, enzymes.',
-        trainingUse: 'Footings faciles, sorties longues, volume de base',
-    },
-    {
-        key: 'z3', num: 3, color: '#22d3ee', name: 'Seuil aérobie',
-        pct: '80–87%',
-        tip: 'Quelques mots seulement entre chaque respiration.',
-        desc: 'La zone tempo. Tu peux tenir cet effort 30–60 min. Repousse le seuil lactique et améliore l\'efficacité à vitesse soutenue. Exigeant mais très productif.',
-        trainingUse: 'Tempos, progressions, fartlek',
-    },
-    {
-        key: 'z4', num: 4, color: '#f97316', name: 'Seuil lactique',
-        pct: '87–92%',
-        tip: 'Impossible de parler. Tu t\'exprimes par fragments.',
-        desc: 'La zone de seuil — le point où l\'acide lactique s\'accumule plus vite que le corps ne peut l\'éliminer. Développer cette zone repousse la limite de vitesse tenable sur longue durée.',
-        trainingUse: 'Intervalles seuil, allure 10k/semi',
-    },
-    {
-        key: 'z5', num: 5, color: '#ef4444', name: 'VO₂max',
-        pct: '> 92%',
-        tip: 'Maximum. Quelques secondes à quelques minutes.',
-        desc: 'La zone rouge. Améliore la capacité aérobie maximale (VO₂max), la puissance et la vitesse. Ne peut être tenu que sur de courtes répétitions. Très stressant pour l\'organisme — à doser.',
-        trainingUse: 'Intervalles courts (200–800 m), côtes, strides',
-    },
-] as const;
-
-const PACE_ZONES = [
-    { key: 'easyPace',       label: 'Course facile',   color: '#22c55e', zone: 'Z1–Z2', desc: 'Footings quotidiens et longues sorties' },
-    { key: 'longRunPace',    label: 'Sortie longue',   color: '#5ab2ff', zone: 'Z2',   desc: 'Ta sortie longue hebdomadaire' },
-    { key: 'tempoPace',      label: 'Tempo / Seuil',   color: '#22d3ee', zone: 'Z3',   desc: 'Séances tempo 20–40 min' },
-    { key: 'intervalPace',   label: 'Intervalles',     color: '#f97316', zone: 'Z4',   desc: 'Répétitions VO₂max' },
-    { key: 'repetitionPace', label: 'Répétitions',     color: '#ef4444', zone: 'Z5',   desc: 'Courts efforts à pleine vitesse' },
-    { key: 'marathonPace',   label: 'Allure marathon', color: '#fbbf24', zone: 'Z3',   desc: 'Allure objectif marathon' },
-] as const;
+// ZONE_LIST and PACE_ZONES imported from src/constants/zones.ts
 
 const RACE_DISTANCES = [
     { value: '5k',            label: '5 km' },
@@ -101,6 +56,16 @@ function parseTimeInput(val: string): number | null {
     return null;
 }
 
+function parsePaceInput(val: string): { min: number; max: number } | null {
+    // Accept "5:30" → 330 sec/km; creates ±10s range
+    const clean = val.trim();
+    const parts = clean.split(':').map(Number);
+    if (parts.length !== 2 || parts.some(isNaN)) return null;
+    const sec = parts[0] * 60 + parts[1];
+    if (sec < 120 || sec > 720) return null; // sanity: 2:00–12:00/km
+    return { min: sec - 10, max: sec + 10 };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TrainingZones() {
@@ -124,6 +89,10 @@ export function TrainingZones() {
     const [raceDistance, setRaceDistance] = useState<string>('10k');
     const [raceTime, setRaceTime] = useState('');
     const [raceTimeError, setRaceTimeError] = useState('');
+    // Custom pace overrides (mm:ss/km format)
+    const [easyPaceInput, setEasyPaceInput] = useState('');
+    const [tempoPaceInput, setTempoPaceInput] = useState('');
+    const [intervalPaceInput, setIntervalPaceInput] = useState('');
 
     useEffect(() => {
         if (paces) return;
@@ -166,6 +135,9 @@ export function TrainingZones() {
             setRaceDistance(p.recentRace.distance);
             setRaceTime(fmtRaceTime(p.recentRace.timeSeconds));
         }
+        if (p.customPaces?.easyPace) setEasyPaceInput(fmtPace(Math.round((p.customPaces.easyPace.min + p.customPaces.easyPace.max) / 2)));
+        if (p.customPaces?.tempoPace) setTempoPaceInput(fmtPace(Math.round((p.customPaces.tempoPace.min + p.customPaces.tempoPace.max) / 2)));
+        if (p.customPaces?.intervalPace) setIntervalPaceInput(fmtPace(Math.round((p.customPaces.intervalPace.min + p.customPaces.intervalPace.max) / 2)));
     };
 
     const handleSave = async () => {
@@ -184,6 +156,17 @@ export function TrainingZones() {
             if (aetHR) body.aerobicThresholdHR = Number(aetHR);
             if (lt2HR) body.lactateThresholdHR = Number(lt2HR);
             if (timeSec) body.recentRace = { distance: raceDistance, timeSeconds: timeSec };
+            // Custom pace overrides
+            const easyPaceRange = easyPaceInput ? parsePaceInput(easyPaceInput) : null;
+            const tempoPaceRange = tempoPaceInput ? parsePaceInput(tempoPaceInput) : null;
+            const intervalPaceRange = intervalPaceInput ? parsePaceInput(intervalPaceInput) : null;
+            if (easyPaceRange || tempoPaceRange || intervalPaceRange) {
+                body.customPaces = {
+                    ...(easyPaceRange && { easyPace: easyPaceRange }),
+                    ...(tempoPaceRange && { tempoPace: tempoPaceRange }),
+                    ...(intervalPaceRange && { intervalPace: intervalPaceRange }),
+                };
+            }
 
             const res = await api.put('/training/zones', body);
             setPaces(res.data.paces);
@@ -224,7 +207,7 @@ export function TrainingZones() {
                             {source && (
                                 <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
                                     <div className="w-1.5 h-1.5 rounded-full" style={{
-                                        background: source === 'race' ? '#fbbf24' : source === 'hr' ? '#ef4444' : '#64748b'
+                                        background: source === 'race' ? '#fbbf24' : source === 'hr' ? ZONE_CONFIG.z4.color : '#64748b'
                                     }} />
                                     <span className="text-[7px] font-black uppercase tracking-widest text-text-muted">
                                         {source === 'race' ? 'Course' : source === 'hr' ? 'FC' : 'Défaut'}
@@ -291,7 +274,7 @@ export function TrainingZones() {
                                 )}
 
                                 {/* Zone cards */}
-                                {ZONE_DATA.map((z, idx) => {
+                                {ZONE_LIST.map((z, idx) => {
                                     const hrZone = paces?.zones?.[z.key];
                                     const isExpanded = expandedZone === z.key;
                                     return (
@@ -322,7 +305,7 @@ export function TrainingZones() {
                                                     {/* Zone info */}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between">
-                                                            <span className="text-sm font-black text-white">{z.name}</span>
+                                                            <span className="text-sm font-black text-white">{z.fullLabel}</span>
                                                             <ChevronRight
                                                                 size={14}
                                                                 className={clsx('text-text-muted/40 transition-transform shrink-0', isExpanded && 'rotate-90')}
@@ -466,13 +449,29 @@ export function TrainingZones() {
                                             );
                                         })}
 
-                                        <div className="glass-card rounded-[22px] p-4 mt-2">
-                                            <p className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-2">Comment lire les allures</p>
-                                            <p className="text-xs text-text-muted/80 leading-relaxed">
-                                                Chaque allure est une fourchette min–max en <strong className="text-white/70">min:sec /km</strong>.
-                                                La valeur gauche est la plus rapide, la droite la plus lente.
-                                                Reste dans cette fourchette pour cibler la bonne adaptation physiologique.
-                                            </p>
+                                        {/* FC primary / Pace estimated callout */}
+                                        <div className="rounded-[22px] overflow-hidden border border-white/[0.08]">
+                                            <div className="flex items-start gap-3 p-4 border-b border-white/[0.06]"
+                                                style={{ background: `${ZONE_CONFIG.z4.color}08` }}>
+                                                <Heart size={14} className="shrink-0 mt-0.5" style={{ color: ZONE_CONFIG.z4.color }} />
+                                                <div>
+                                                    <p className="text-[10px] font-black text-white mb-0.5">La FC est ta référence absolue</p>
+                                                    <p className="text-[10px] text-text-muted leading-relaxed">
+                                                        Respecte toujours la zone cardiaque prescrite, quelle que soit l'allure affichée.
+                                                        Par temps chaud, en altitude ou en fatigue, ton cœur ne ment pas — ta montre d'allure si.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-start gap-3 p-4 bg-white/[0.025]">
+                                                <TrendingUp size={14} className="shrink-0 mt-0.5 text-text-muted/60" />
+                                                <div>
+                                                    <p className="text-[10px] font-black text-white/70 mb-0.5">L'allure est une estimation</p>
+                                                    <p className="text-[10px] text-text-muted leading-relaxed">
+                                                        Calculée depuis ton VDOT dans des conditions idéales (18 °C, plat, reposé).
+                                                        Elle peut varier de <strong className="text-white/50">±15–30 sec/km</strong> selon les conditions du jour.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </>
                                 )}
@@ -529,11 +528,60 @@ export function TrainingZones() {
                                     </div>
                                 </FormSection>
 
+                                {/* Allures personnalisées */}
+                                <FormSection
+                                    title="Allures personnalisées"
+                                    icon={TrendingUp}
+                                    color="#5ab2ff"
+                                    badge="Optionnel"
+                                    info="Entre directement tes allures cibles si tu les connais. Elles remplaceront les allures calculées depuis ta course. Format mm:ss par km (ex : 5:30). La FC reste toujours la référence principale."
+                                    expandedInfo={expandedInfo}
+                                    onToggleInfo={setExpandedInfo}
+                                    infoKey="custompaces"
+                                >
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest mb-1.5 block" style={{ color: ZONE_CONFIG.z2.color }}>
+                                                Course facile / Endurance <span className="text-text-muted/50 normal-case tracking-normal font-normal">Z1–Z2</span>
+                                            </label>
+                                            <input
+                                                value={easyPaceInput}
+                                                onChange={e => setEasyPaceInput(e.target.value)}
+                                                placeholder="ex : 5:30"
+                                                className="field-input text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest mb-1.5 block" style={{ color: ZONE_CONFIG.z3.color }}>
+                                                Tempo / Seuil <span className="text-text-muted/50 normal-case tracking-normal font-normal">Z3</span>
+                                            </label>
+                                            <input
+                                                value={tempoPaceInput}
+                                                onChange={e => setTempoPaceInput(e.target.value)}
+                                                placeholder="ex : 4:30"
+                                                className="field-input text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest mb-1.5 block" style={{ color: ZONE_CONFIG.z4.color }}>
+                                                Intervalles <span className="text-text-muted/50 normal-case tracking-normal font-normal">Z4</span>
+                                            </label>
+                                            <input
+                                                value={intervalPaceInput}
+                                                onChange={e => setIntervalPaceInput(e.target.value)}
+                                                placeholder="ex : 4:00"
+                                                className="field-input text-sm"
+                                            />
+                                        </div>
+                                        <p className="text-[9px] text-text-muted/60">Format mm:ss/km · Laisse vide pour utiliser le calcul automatique</p>
+                                    </div>
+                                </FormSection>
+
                                 {/* FC max */}
                                 <FormSection
                                     title="Fréquence cardiaque max"
                                     icon={Heart}
-                                    color="#ef4444"
+                                    color={ZONE_CONFIG.z5.color}
                                     info="Ta FC max détermine les plafonds de tes zones. Mesure : sprint de 3–5 min à pleine intensité en fin de séance et relève le pic."
                                     expandedInfo={expandedInfo}
                                     onToggleInfo={setExpandedInfo}
@@ -599,7 +647,7 @@ export function TrainingZones() {
                                 <FormSection
                                     title="Seuil aérobie (AeT)"
                                     icon={Zap}
-                                    color="#22d3ee"
+                                    color={ZONE_CONFIG.z3.color}
                                     badge="Avancé"
                                     info="La FC au sommet de la Z2 — le plafond de l'endurance aérobie pure. Test : 30–60 min à l'effort, note la FC moyenne. Ou : la FC à laquelle tu commences à transpirer plus intensément."
                                     expandedInfo={expandedInfo}
@@ -619,7 +667,7 @@ export function TrainingZones() {
                                 <FormSection
                                     title="Seuil lactique (LT2)"
                                     icon={TrendingUp}
-                                    color="#f97316"
+                                    color={ZONE_CONFIG.z4.color}
                                     badge="Avancé"
                                     info="La FC max que tu peux tenir 30–60 min en compétition. Test : course ou vélo à fond sur 30 min, FC moyenne sur les 20 dernières minutes. La plus précise mais la plus dure."
                                     expandedInfo={expandedInfo}
@@ -657,8 +705,8 @@ export function TrainingZones() {
                                 </button>
 
                                 <p className="text-[10px] text-text-muted/60 text-center leading-relaxed pb-2">
-                                    La performance récente est la donnée la plus impactante.
-                                    Les données FC affinent mais ne remplacent pas le VDOT.
+                                    La performance récente est la donnée la plus précise.
+                                    Les allures personnalisées remplacent le calcul automatique si renseignées.
                                 </p>
                             </motion.div>
                         )}

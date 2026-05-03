@@ -4,7 +4,7 @@ import { format, addDays, isSameDay, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Play, ChevronLeft, ChevronRight, Flag, Plus, Loader2,
+    Play, ChevronLeft, ChevronRight, ChevronDown, Flag, Plus, Loader2,
     MessageSquare, Calendar as CalendarIcon, Trash2, BarChart2,
     Zap, Timer, MapPin, Activity, Heart, Flame, Wind, Repeat2,
     TrendingUp, StickyNote, Route,
@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { api } from '../services/api';
 import { PlanGeneratorWizard } from '../components/training/PlanGeneratorWizard';
 import { FeedbackModal } from '../components/training/FeedbackModal';
+import { ZONE_CONFIG, WORKOUT_COLORS, WORKOUT_LABELS, WORKOUT_SHORT, zoneColor, type ZoneKey } from '../constants/zones';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -31,33 +32,6 @@ const PHASE_CONFIG: Record<string, { color: string; label: string; desc: string 
     taper:       { color: '#22c55e', label: 'Affûtage',      desc: 'Vol. −40%' },
 };
 
-const WORKOUT_COLORS: Record<string, string> = {
-    easy_run:             '#22c55e',
-    long_run:             '#5ab2ff',
-    recovery_run:         '#64748b',
-    tempo:                '#f97316',
-    threshold_intervals:  '#ef4444',
-    vo2max_intervals:     '#ec4899',
-    hill_repeats:         '#f59e0b',
-    fartlek:              '#8b5cf6',
-    progression_run:      '#22d3ee',
-    race_pace:            '#f97316',
-    strides:              '#a78bfa',
-};
-
-const WORKOUT_LABELS: Record<string, string> = {
-    easy_run:             'Footing facile',
-    long_run:             'Sortie longue',
-    recovery_run:         'Récupération',
-    tempo:                'Tempo',
-    threshold_intervals:  'Intervalles seuil',
-    vo2max_intervals:     'VO₂max',
-    hill_repeats:         'Côtes',
-    fartlek:              'Fartlek',
-    progression_run:      'Progression',
-    race_pace:            'Allure course',
-    strides:              'Accélérations',
-};
 
 const DAY_HEADERS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
@@ -76,19 +50,6 @@ const WORKOUT_ICONS: Record<string, React.ElementType> = {
     strides:             Zap,
 };
 
-const WORKOUT_SHORT: Record<string, string> = {
-    easy_run:            'Facile',
-    long_run:            'Long',
-    recovery_run:        'Récup',
-    tempo:               'Tempo',
-    threshold_intervals: 'Seuil',
-    vo2max_intervals:    'VO₂',
-    hill_repeats:        'Côtes',
-    fartlek:             'Fartlek',
-    progression_run:     'Prog.',
-    race_pace:           'Course',
-    strides:             'Stride',
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -581,7 +542,7 @@ export function Training() {
 
                     {/* Readiness check — only shown for current/upcoming week with intensity sessions */}
                     {viewedWeek >= currentWeek && viewedWeekData?.readinessCheck?.intensitySessions > 0 && (
-                        <ReadinessCheck check={viewedWeekData.readinessCheck} week={viewedWeek} />
+                        <ReadinessCheck check={viewedWeekData.readinessCheck} week={viewedWeek} paces={plan?.paces} />
                     )}
 
                     {/* 7-day tiles */}
@@ -827,14 +788,6 @@ function fmtDur(min: number | undefined): string | null {
     return min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, '0') : ''}` : `${min} min`;
 }
 
-const ZONE_CONFIG = {
-    z1: { color: '#64748b', label: 'Récup',    fullLabel: 'Récupération' },
-    z2: { color: '#22c55e', label: 'Aérobie',  fullLabel: 'Endurance aérobie' },
-    z3: { color: '#22d3ee', label: 'Tempo',    fullLabel: 'Seuil aérobie' },
-    z4: { color: '#f97316', label: 'Seuil',    fullLabel: 'Seuil lactique' },
-    z5: { color: '#ef4444', label: 'VO₂',      fullLabel: 'VO₂max / Anaérobie' },
-} as const;
-
 const SEGMENT_STYLE = {
     warmup:   { color: '#f97316', icon: Flame,   label: 'Échauffement' },
     main:     { color: '#5ab2ff', icon: TrendingUp, label: 'Corps de séance' },
@@ -864,9 +817,8 @@ function WorkoutCard({
     const workoutLabel = WORKOUT_LABELS[workout.type] ?? workout.type;
     const paceStr = fmtPaceRange(workout.targetPace);
 
-    // HR info: prefer workout.targetHeartRate, then look up zone from paces
-    const zoneKey = workout.zone as keyof typeof ZONE_CONFIG | undefined;
-    void (zoneKey ? ZONE_CONFIG[zoneKey] : null); // zone config reserved for future use
+    // targetZone takes priority over legacy zone field
+    const zoneKey = (workout.targetZone ?? workout.zone) as ZoneKey | undefined;
     const hrRange = workout.targetHeartRate ?? (zoneKey ? paces?.zones?.[zoneKey] : null);
 
     // Group segments for display
@@ -933,7 +885,7 @@ function WorkoutCard({
                         <StatChip icon={Activity} value={`RPE ${workout.rpe}/10`} />
                     )}
                     {paceStr && (
-                        <StatChip icon={TrendingUp} value={paceStr} accent={workoutColor} />
+                        <StatChip icon={TrendingUp} value={paceStr} accent={workoutColor} estimated />
                     )}
                 </div>
 
@@ -967,7 +919,7 @@ function WorkoutCard({
                                     transition={{ duration: 0.22 }}
                                     className="overflow-hidden"
                                 >
-                                    <div className="rounded-2xl overflow-hidden border border-white/[0.07]">
+                                    <div>
                                         {workout.warmup && (
                                             <SegmentRow segment={workout.warmup} segType="warmup" isFirst isLast={!intervalGroups.length && !workout.cooldown} />
                                         )}
@@ -1019,54 +971,58 @@ function WorkoutCard({
 function ZoneBar({ activeZone, hrRange, paces }: { activeZone: string; hrRange: any; paces?: any }) {
     const navigate = useNavigate();
     const zones = Object.entries(ZONE_CONFIG) as [keyof typeof ZONE_CONFIG, typeof ZONE_CONFIG[keyof typeof ZONE_CONFIG]][];
+    const cfg = ZONE_CONFIG[activeZone as keyof typeof ZONE_CONFIG];
+    const zoneHeights: Record<string, number> = { z1: 18, z2: 24, z3: 30, z4: 37, z5: 44 };
+
     return (
-        <button
-            onClick={() => navigate('/zones', { state: { paces } })}
-            className="w-full text-left"
-        >
-        <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 flex items-center justify-between">
-            <span>Zone d'intensité</span>
-            <span className="text-primary/60 flex items-center gap-0.5 text-[8px]">Voir tout <ChevronRight size={9} /></span>
-        </div>
-            <div className="flex gap-1 mb-2">
-                {zones.map(([key, cfg]) => {
+        <button onClick={() => navigate('/zones', { state: { paces } })} className="w-full text-left">
+            <div className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-2.5 flex items-center justify-between">
+                <span>Zone d'intensité</span>
+                <span className="text-primary/60 flex items-center gap-0.5 text-[8px]">Voir tout <ChevronRight size={9} /></span>
+            </div>
+
+            {/* Variable-height ascending zone bars */}
+            <div className="flex gap-1 items-end mb-2.5" style={{ height: 44 }}>
+                {zones.map(([key, zoneCfg]) => {
                     const isActive = key === activeZone;
+                    const h = zoneHeights[key] ?? 28;
                     return (
                         <div
                             key={key}
-                            className={clsx(
-                                'flex-1 h-7 rounded-xl flex flex-col items-center justify-center gap-0 transition-all duration-300',
-                                isActive ? 'opacity-100' : 'opacity-30'
-                            )}
+                            className="flex-1 rounded-lg flex flex-col items-center justify-end pb-1.5 transition-all duration-300"
                             style={{
-                                background: isActive ? cfg.color : `${cfg.color}30`,
-                                boxShadow: isActive ? `0 0 12px ${cfg.color}60` : undefined,
+                                height: h,
+                                background: isActive
+                                    ? `linear-gradient(180deg, ${zoneCfg.color}, ${zoneCfg.color}cc)`
+                                    : `${zoneCfg.color}20`,
+                                boxShadow: isActive ? `0 0 14px ${zoneCfg.color}55, 0 3px 10px ${zoneCfg.color}44` : undefined,
+                                opacity: isActive ? 1 : 0.38,
+                                border: isActive ? `1px solid ${zoneCfg.color}70` : `1px solid ${zoneCfg.color}18`,
                             }}
                         >
-                            <span className={clsx('text-[8px] font-black leading-none', isActive ? 'text-white' : 'text-white/50')}>
+                            <span className={clsx('text-[7px] font-black leading-none', isActive ? 'text-white' : 'text-white/40')}>
                                 {key.toUpperCase()}
                             </span>
                         </div>
                     );
                 })}
             </div>
-            {(() => {
-                const cfg = ZONE_CONFIG[activeZone as keyof typeof ZONE_CONFIG];
-                if (!hrRange && !cfg) return null;
-                return (
+
+            {/* Active zone info pill */}
+            {cfg && (
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl"
+                    style={{ background: `${cfg.color}0e`, border: `1px solid ${cfg.color}22` }}>
                     <div className="flex items-center gap-2">
-                        <Heart size={10} className="shrink-0" style={{ color: cfg?.color ?? '#5ab2ff' }} />
-                        <span className="text-[10px] font-black" style={{ color: cfg?.color ?? '#5ab2ff' }}>
-                            {cfg?.fullLabel}
-                        </span>
-                        {hrRange?.min && hrRange?.max && (
-                            <span className="text-[10px] text-text-muted font-medium">
-                                · {hrRange.min}–{hrRange.max} bpm
-                            </span>
-                        )}
+                        <div className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ background: cfg.color }} />
+                        <span className="text-[11px] font-black" style={{ color: cfg.color }}>{cfg.fullLabel}</span>
                     </div>
-                );
-            })()}
+                    {hrRange?.min && hrRange?.max && (
+                        <span className="text-[11px] font-black tabular-nums" style={{ color: cfg.color }}>
+                            {hrRange.min}–{hrRange.max} <span className="text-[9px] text-white/40 font-bold">bpm</span>
+                        </span>
+                    )}
+                </div>
+            )}
         </button>
     );
 }
@@ -1084,47 +1040,81 @@ function SegmentRow({ segment, segType, isLast }: {
     const durStr = fmtDur(segment.duration);
     const paceStr = fmtPaceRange(segment.pace);
     const hrRange = segment.targetHeartRate;
+    // targetZone overrides the default segment style color
+    const displayColor = segment.targetZone ? zoneColor(segment.targetZone) : cfg.color;
 
     return (
-        <div className={clsx(
-            'flex gap-3 px-4 py-3 bg-white/[0.025]',
-            !isLast && 'border-b border-white/[0.06]'
-        )}>
-            {/* Left accent + icon */}
-            <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
-                <div
-                    className="w-6 h-6 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: `${cfg.color}20`, border: `1px solid ${cfg.color}35` }}
-                >
-                    <Icon size={11} style={{ color: cfg.color }} />
-                </div>
-                {!isLast && <div className="w-px flex-1 min-h-[12px] bg-white/[0.06]" />}
-            </div>
+        <div>
+            {/* Phase block */}
+            <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                    background: `linear-gradient(135deg, ${displayColor}0d, ${displayColor}05)`,
+                    border: `1px solid ${displayColor}28`,
+                }}
+            >
+                {/* Top accent stripe */}
+                <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${displayColor}, transparent)` }} />
 
-            {/* Content */}
-            <div className="flex-1 min-w-0 pb-1">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: cfg.color }}>
-                        {cfg.label}
-                    </span>
-                    {durStr && <span className="text-[10px] font-bold text-text-muted shrink-0">{durStr}</span>}
-                </div>
-                <p className="text-xs text-white/70 leading-snug">{segment.description}</p>
-                {(paceStr || hrRange) && (
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-                        {paceStr && (
-                            <span className="text-[9px] font-bold text-text-muted/70 flex items-center gap-1">
-                                <TrendingUp size={8} className="shrink-0" />{paceStr}
+                <div className="p-3.5">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <div
+                                className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                                style={{ background: `${displayColor}22`, border: `1px solid ${displayColor}40` }}
+                            >
+                                <Icon size={11} style={{ color: displayColor }} />
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-[0.14em]" style={{ color: displayColor }}>
+                                {cfg.label}
                             </span>
-                        )}
-                        {hrRange?.min && hrRange?.max && (
-                            <span className="text-[9px] font-bold text-text-muted/70 flex items-center gap-1">
-                                <Heart size={8} className="shrink-0" />{hrRange.min}–{hrRange.max} bpm
-                            </span>
+                        </div>
+                        {durStr && (
+                            <span className="text-sm font-black tabular-nums" style={{ color: displayColor }}>{durStr}</span>
                         )}
                     </div>
-                )}
+
+                    {/* Description */}
+                    {segment.description && (
+                        <p className="text-[11px] text-white/55 leading-snug mb-2.5">{segment.description}</p>
+                    )}
+
+                    {/* Metrics pills — HR primary, pace secondary */}
+                    {(paceStr || (hrRange?.min && hrRange?.max)) && (
+                        <div className="flex gap-2 flex-wrap">
+                            {hrRange?.min && hrRange?.max && (
+                                <div
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+                                    style={{ background: `${displayColor}18`, border: `1px solid ${displayColor}40` }}
+                                >
+                                    <Heart size={8} style={{ color: displayColor }} className="shrink-0" />
+                                    <span className="text-[10px] font-black tabular-nums" style={{ color: displayColor }}>{hrRange.min}–{hrRange.max} bpm</span>
+                                </div>
+                            )}
+                            {paceStr && (
+                                <div
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border-dashed"
+                                    style={{ background: `${displayColor}06`, border: `1px dashed ${displayColor}22` }}
+                                >
+                                    <TrendingUp size={8} style={{ color: `${displayColor}80` }} className="shrink-0" />
+                                    <span className="text-[10px] tabular-nums text-white/45 font-medium">~{paceStr}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* Connector arrow to next block */}
+            {!isLast && (
+                <div className="flex justify-center py-1.5">
+                    <div className="flex flex-col items-center gap-px">
+                        <div className="w-px h-3 rounded-full" style={{ background: `${displayColor}35` }} />
+                        <ChevronDown size={10} style={{ color: `${displayColor}50` }} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -1145,69 +1135,154 @@ function IntervalGroupRow({ group, isFirst, isLast }: {
     const distStr = interval?.distance ? `${interval.distance} km` : fmtDur(interval?.duration);
     const recStr = fmtDur(recovery?.duration);
     const hrRange = interval?.targetHeartRate;
+    // Use targetZone color when available, otherwise default to z4 (threshold)
+    const color = interval?.targetZone ? zoneColor(interval.targetZone) : ZONE_CONFIG.z4.color;
+    const recColor = recovery?.targetZone ? zoneColor(recovery.targetZone) : ZONE_CONFIG.z1.color;
 
     return (
-        <div className={clsx(
-            'flex gap-3 px-4 py-3 bg-white/[0.025]',
-            !isLast && 'border-b border-white/[0.06]'
-        )}>
-            <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
-                <div className="w-6 h-6 rounded-xl flex items-center justify-center shrink-0 bg-red-500/20 border border-red-500/35">
-                    <Repeat2 size={11} className="text-red-400" />
-                </div>
-                {!isLast && <div className="w-px flex-1 min-h-[12px] bg-white/[0.06]" />}
-            </div>
-            <div className="flex-1 pb-1">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-red-400">
-                        {count} × {distStr}
-                    </span>
-                </div>
-                {interval?.description && (
-                    <p className="text-xs text-white/70 leading-snug">{interval.description}</p>
-                )}
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-                    {paceStr && (
-                        <span className="text-[9px] font-bold text-text-muted/70 flex items-center gap-1">
-                            <TrendingUp size={8} />{paceStr}
-                        </span>
-                    )}
-                    {hrRange?.min && hrRange?.max && (
-                        <span className="text-[9px] font-bold text-text-muted/70 flex items-center gap-1">
-                            <Heart size={8} />{hrRange.min}–{hrRange.max} bpm
-                        </span>
-                    )}
+        <div>
+            {/* Interval block */}
+            <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                    background: `linear-gradient(135deg, ${color}12, ${color}06)`,
+                    border: `1px solid ${color}30`,
+                }}
+            >
+                {/* Top accent stripe */}
+                <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${color}, transparent)` }} />
+
+                <div className="p-3.5">
+                    {/* Header: big count + rep dots */}
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-baseline gap-0.5 shrink-0">
+                            <span className="text-[2rem] font-black tabular-nums leading-none" style={{ color }}>
+                                {count}
+                            </span>
+                            <span className="text-base font-black text-white/25 leading-none mb-0.5">×</span>
+                        </div>
+
+                        {/* Rep dots — fills remaining space */}
+                        <div className="flex gap-1.5 flex-wrap items-center flex-1">
+                            {Array.from({ length: Math.min(count, 12) }).map((_, i) => {
+                                const opacity = 0.35 + (i / Math.max(count - 1, 1)) * 0.65;
+                                return (
+                                    <div
+                                        key={i}
+                                        className="w-2.5 h-2.5 rounded-full border"
+                                        style={{
+                                            background: `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+                                            borderColor: `${color}55`,
+                                        }}
+                                    />
+                                );
+                            })}
+                            {count > 12 && (
+                                <span className="text-[9px] font-black text-white/30 ml-0.5">+{count - 12}</span>
+                            )}
+                        </div>
+
+                        <div
+                            className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: `${color}22`, border: `1px solid ${color}40` }}
+                        >
+                            <Repeat2 size={11} style={{ color }} />
+                        </div>
+                    </div>
+
+                    {/* Interval detail block */}
+                    <div
+                        className="rounded-xl p-3 mb-2.5"
+                        style={{ background: `${color}08`, border: `1px solid ${color}20` }}
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-black tabular-nums" style={{ color }}>{distStr}</span>
+                            {interval?.description && (
+                                <span className="text-[9px] text-white/35 ml-2 truncate max-w-[130px]">{interval.description}</span>
+                            )}
+                        </div>
+                        {(paceStr || (hrRange?.min && hrRange?.max)) && (
+                            <div className="flex gap-2 flex-wrap">
+                                {hrRange?.min && hrRange?.max && (
+                                    <div
+                                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+                                        style={{ background: `${color}18`, border: `1px solid ${color}40` }}
+                                    >
+                                        <Heart size={8} style={{ color }} className="shrink-0" />
+                                        <span className="text-[10px] font-black tabular-nums" style={{ color }}>{hrRange.min}–{hrRange.max} bpm</span>
+                                    </div>
+                                )}
+                                {paceStr && (
+                                    <div
+                                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg border-dashed"
+                                        style={{ background: `${color}06`, border: `1px dashed ${color}22` }}
+                                    >
+                                        <TrendingUp size={8} style={{ color: `${color}80` }} className="shrink-0" />
+                                        <span className="text-[10px] tabular-nums text-white/45 font-medium">~{paceStr}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Recovery row */}
                     {recStr && (
-                        <span className="text-[9px] font-bold text-green-400/70 flex items-center gap-1">
-                            <Heart size={8} />Récup {recStr}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 rounded-full" style={{ background: `${recColor}25` }} />
+                            <div
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                                style={{ background: `${recColor}10`, border: `1px solid ${recColor}28` }}
+                            >
+                                <Heart size={7} style={{ color: recColor }} />
+                                <span className="text-[9px] font-black" style={{ color: recColor }}>Récup {recStr}</span>
+                            </div>
+                            <div className="h-px flex-1 rounded-full" style={{ background: `${recColor}25` }} />
+                        </div>
                     )}
                 </div>
             </div>
+
+            {/* Connector to next block */}
+            {!isLast && (
+                <div className="flex justify-center py-1.5">
+                    <div className="flex flex-col items-center gap-px">
+                        <div className="w-px h-3 rounded-full" style={{ background: `${color}35` }} />
+                        <ChevronDown size={10} style={{ color: `${color}50` }} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
 // ─── Stat chip ────────────────────────────────────────────────────────────────
 
-function StatChip({ icon: Icon, value, accent }: { icon: React.ElementType; value: string; accent?: string }) {
+function StatChip({ icon: Icon, value, accent, estimated }: { icon: React.ElementType; value: string; accent?: string; estimated?: boolean }) {
     return (
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.05] border border-white/[0.08]">
-            <Icon size={10} className="text-text-muted shrink-0" style={accent ? { color: accent } : undefined} />
-            <span className="text-[10px] font-bold text-white/80">{value}</span>
+        <div className={clsx(
+            'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border',
+            estimated ? 'bg-white/[0.03] border-dashed border-white/[0.10]' : 'bg-white/[0.05] border-white/[0.08]'
+        )}>
+            <Icon size={10} className={clsx('shrink-0', estimated ? 'text-text-muted/50' : 'text-text-muted')} style={accent ? { color: accent } : undefined} />
+            <span className={clsx('text-[10px] font-bold', estimated ? 'text-white/50' : 'text-white/80')}>{value}</span>
+            {estimated && <span className="text-[8px] font-black text-text-muted/40 uppercase tracking-widest">est.</span>}
         </div>
     );
 }
 
 // ─── Readiness check ─────────────────────────────────────────────────────────
 
-function ReadinessCheck({ check, week }: { check: any; week: number }) {
+function ReadinessCheck({ check, week, paces }: { check: any; week: number; paces?: any }) {
     const [selected, setSelected] = useState<'green' | 'amber' | 'red' | null>(null);
     const [dismissed, setDismissed] = useState(false);
+    const [workoutExpanded, setWorkoutExpanded] = useState(false);
 
     if (dismissed) return null;
 
     const selectedOption = check.options?.find((o: any) => o.value === selected);
+    const suggestedWorkout = selectedOption?.suggestedWorkout;
+    const isBiweekly = selectedOption?.suggestedFrequency === 'biweekly';
+
     const OPTION_STYLE: Record<string, { color: string; bg: string }> = {
         green: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
         amber: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
@@ -1236,7 +1311,7 @@ function ReadinessCheck({ check, week }: { check: any; week: number }) {
                     return (
                         <button
                             key={opt.value}
-                            onClick={() => setSelected(isSelected ? null : opt.value)}
+                            onClick={() => { setSelected(isSelected ? null : opt.value); setWorkoutExpanded(false); }}
                             className="flex-1 py-2 rounded-xl text-[10px] font-black transition-all border"
                             style={{
                                 color: style.color,
@@ -1249,15 +1324,159 @@ function ReadinessCheck({ check, week }: { check: any; week: number }) {
                     );
                 })}
             </div>
-            {selectedOption && (
-                <motion.p
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="text-[10px] text-text-muted mt-2.5 leading-relaxed overflow-hidden"
-                >
-                    {selectedOption.action}
-                </motion.p>
-            )}
+
+            <AnimatePresence>
+                {selectedOption && (
+                    <motion.div
+                        key={selected}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                    >
+                        <p className="text-[10px] text-text-muted mt-2.5 leading-relaxed">
+                            {selectedOption.action}
+                        </p>
+
+                        {/* Séance optionnelle — uniquement option Frais */}
+                        {suggestedWorkout && (
+                            <div className="mt-3 rounded-[16px] overflow-hidden border border-white/[0.08]"
+                                style={{ background: `${zoneColor(suggestedWorkout.targetZone)}08` }}>
+
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5"
+                                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span
+                                            className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border"
+                                            style={{
+                                                color: zoneColor(suggestedWorkout.targetZone),
+                                                borderColor: `${zoneColor(suggestedWorkout.targetZone)}40`,
+                                                background: `${zoneColor(suggestedWorkout.targetZone)}15`,
+                                            }}
+                                        >
+                                            {WORKOUT_LABELS[suggestedWorkout.type] ?? suggestedWorkout.type}
+                                        </span>
+                                        {isBiweekly && (
+                                            <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-text-muted">
+                                                1 semaine / 2
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {suggestedWorkout.targetDuration && (
+                                            <span className="text-[9px] font-bold text-text-muted/70">
+                                                {fmtDur(suggestedWorkout.targetDuration)}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Title + desc */}
+                                <div className="px-3.5 py-2.5">
+                                    <p className="text-xs font-black text-white leading-tight mb-1"
+                                        style={{ color: zoneColor(suggestedWorkout.targetZone) }}>
+                                        {suggestedWorkout.title}
+                                    </p>
+                                    <p className="text-[10px] text-text-muted leading-relaxed">
+                                        {suggestedWorkout.description}
+                                    </p>
+                                </div>
+
+                                {/* Stats row */}
+                                <div className="flex items-center gap-3 px-3.5 pb-2.5">
+                                    {suggestedWorkout.targetDistance && (
+                                        <span className="text-[9px] font-bold text-text-muted/70 flex items-center gap-1">
+                                            <Route size={9} />
+                                            {suggestedWorkout.targetDistance} km
+                                        </span>
+                                    )}
+                                    {suggestedWorkout.rpe && (
+                                        <span className="text-[9px] font-bold text-text-muted/70 flex items-center gap-1">
+                                            <Flame size={9} />
+                                            RPE {suggestedWorkout.rpe}/10
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Toggle structure */}
+                                <button
+                                    onClick={() => setWorkoutExpanded(e => !e)}
+                                    className="w-full flex items-center justify-between px-3.5 py-2 border-t border-white/[0.06] text-text-muted/60 hover:text-white transition-colors"
+                                >
+                                    <span className="text-[9px] font-black uppercase tracking-widest">
+                                        {workoutExpanded ? 'Masquer la structure' : 'Voir la structure'}
+                                    </span>
+                                    <ChevronRight
+                                        size={11}
+                                        className={clsx('transition-transform duration-200', workoutExpanded && 'rotate-90')}
+                                    />
+                                </button>
+
+                                <AnimatePresence>
+                                    {workoutExpanded && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="overflow-hidden px-3 pb-3"
+                                        >
+                                            {(() => {
+                                                const sw = suggestedWorkout;
+                                                const segs: any[] = sw.segments ?? [];
+                                                const groups = groupIntervals(segs);
+                                                const hasStructure = sw.warmup || groups.length > 0 || sw.cooldown;
+                                                if (!hasStructure) return null;
+                                                const total = (sw.warmup ? 1 : 0) + groups.length + (sw.cooldown ? 1 : 0);
+                                                let idx = 0;
+                                                return (
+                                                    <div className="space-y-1.5 mt-1">
+                                                        {sw.warmup && (
+                                                            <SegmentRow
+                                                                segment={sw.warmup}
+                                                                segType="warmup"
+                                                                isFirst
+                                                                isLast={idx++ === total - 1}
+                                                            />
+                                                        )}
+                                                        {groups.map((g, i) => (
+                                                            <IntervalGroupRow
+                                                                key={i}
+                                                                group={g}
+                                                                isFirst={!sw.warmup && i === 0}
+                                                                isLast={++idx === total}
+                                                            />
+                                                        ))}
+                                                        {sw.cooldown && (
+                                                            <SegmentRow
+                                                                segment={sw.cooldown}
+                                                                segType="cooldown"
+                                                                isFirst={false}
+                                                                isLast
+                                                            />
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {/* 48h warning */}
+                                <div className="flex items-start gap-2 px-3.5 py-2.5 border-t border-white/[0.06]"
+                                    style={{ background: 'rgba(251,191,36,0.04)' }}>
+                                    <Zap size={9} className="shrink-0 mt-0.5 text-amber-400/60" />
+                                    <p className="text-[9px] text-text-muted/60 leading-relaxed">
+                                        À placer à <strong className="text-amber-400/70">48h min</strong> de la séance qualité et de la sortie longue. Sinon : passe.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 }
