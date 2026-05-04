@@ -605,7 +605,7 @@ export function LiveWorkout() {
                 </div>
 
                 {/* Route recap map */}
-                {gpsPoints.current.length > 1 && (
+                {gpsCount > 1 && (
                     <motion.div
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -615,7 +615,7 @@ export function LiveWorkout() {
                     >
                         <WorkoutMap
                             gpsPointsRef={gpsPoints}
-                            distanceTrigger={distanceM}
+                            distanceTrigger={gpsCount}
                             className="w-full h-full"
                         />
                     </motion.div>

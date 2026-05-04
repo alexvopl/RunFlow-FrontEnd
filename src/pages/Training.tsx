@@ -13,7 +13,7 @@ import { clsx } from 'clsx';
 import { api } from '../services/api';
 import { PlanGeneratorWizard } from '../components/training/PlanGeneratorWizard';
 import { FeedbackModal } from '../components/training/FeedbackModal';
-import { ZONE_CONFIG, WORKOUT_COLORS, WORKOUT_LABELS, WORKOUT_SHORT, zoneColor, type ZoneKey } from '../constants/zones';
+import { ZONE_CONFIG, WORKOUT_LABELS, WORKOUT_SHORT, zoneColor, type ZoneKey } from '../constants/zones';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ const PHASE_CONFIG: Record<string, { color: string; label: string; desc: string 
 
 const DAY_HEADERS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
-// Icons par type de séance — utilisés dans le calendrier (cohérents avec WORKOUT_COLORS)
+// Icons par type de séance — la couleur vient toujours de la zone backend.
 const WORKOUT_ICONS: Record<string, React.ElementType> = {
     easy_run:            Activity,
     long_run:            Route,
@@ -240,10 +240,12 @@ export function Training() {
     const workoutByDate: Record<string, any> = {};
     for (const w of workouts) workoutByDate[w.date] = w;
 
+    const planWeeks: any[] = activePlan.weeks ?? [];
     const planStart = activePlan.startDate ? new Date(activePlan.startDate) : new Date();
     const planEnd = activePlan.targetDate ? new Date(activePlan.targetDate) : addDays(planStart, 84);
     const totalMs = planEnd.getTime() - planStart.getTime();
-    const totalWeeks = Math.max(1, Math.ceil(totalMs / (7 * 86400_000)));
+    const dateDerivedWeeks = Math.max(1, Math.ceil(totalMs / (7 * 86400_000)));
+    const totalWeeks = Math.max(1, planWeeks.length || dateDerivedWeeks);
 
     // Fixed: real elapsed time, not week-ceiling
     const now = new Date();
@@ -264,8 +266,8 @@ export function Training() {
     const selectedPhaseInfo = datePhaseMap[selectedDateKey];
 
     // ─── Weekly calendar data ────────────────────────────────────────────────
-    const planWeeks: any[] = activePlan.weeks ?? [];
-    const viewedWeekData = planWeeks.find((w: any) => w.weekNumber === viewedWeek) ?? planWeeks[0];
+    const safeViewedWeek = Math.max(1, Math.min(totalWeeks, viewedWeek));
+    const viewedWeekData = planWeeks.find((w: any) => w.weekNumber === safeViewedWeek) ?? planWeeks[0];
     const weekDays = viewedWeekData
         ? Array.from({ length: 7 }, (_, i) => addDays(new Date(viewedWeekData.startDate), i))
         : [];
@@ -496,7 +498,7 @@ export function Training() {
                     <div className="flex items-center gap-3 mb-3">
                         <button
                             onClick={() => setViewedWeek(w => Math.max(1, w - 1))}
-                            disabled={viewedWeek <= 1}
+                            disabled={safeViewedWeek <= 1}
                             className="w-9 h-9 glass-card rounded-2xl flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all disabled:opacity-30"
                         >
                             <ChevronLeft size={15} className="text-text-muted" />
@@ -504,13 +506,13 @@ export function Training() {
 
                         <div className="flex-1 text-center">
                             <AnimatePresence mode="wait">
-                                <motion.div key={viewedWeek}
+                                <motion.div key={safeViewedWeek}
                                     initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.15 }}
                                 >
                                     <p className="text-sm font-black text-white leading-none">
-                                        Semaine {viewedWeek}
-                                        {viewedWeek === currentWeek && (
+                                        Semaine {safeViewedWeek}
+                                        {safeViewedWeek === currentWeek && (
                                             <span className="ml-1.5 text-[8px] font-black uppercase tracking-widest bg-primary/20 text-primary border border-primary/30 rounded-full px-1.5 py-0.5 align-middle">
                                                 En cours
                                             </span>
@@ -533,7 +535,7 @@ export function Training() {
 
                         <button
                             onClick={() => setViewedWeek(w => Math.min(totalWeeks, w + 1))}
-                            disabled={viewedWeek >= totalWeeks}
+                            disabled={safeViewedWeek >= totalWeeks}
                             className="w-9 h-9 glass-card rounded-2xl flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all disabled:opacity-30"
                         >
                             <ChevronRight size={15} className="text-text-muted" />
@@ -541,8 +543,8 @@ export function Training() {
                     </div>
 
                     {/* Readiness check — only shown for current/upcoming week with intensity sessions */}
-                    {viewedWeek >= currentWeek && viewedWeekData?.readinessCheck?.intensitySessions > 0 && (
-                        <ReadinessCheck check={viewedWeekData.readinessCheck} week={viewedWeek} paces={plan?.paces} />
+                    {safeViewedWeek >= currentWeek && viewedWeekData?.readinessCheck?.intensitySessions > 0 && (
+                        <ReadinessCheck check={viewedWeekData.readinessCheck} week={safeViewedWeek} />
                     )}
 
                     {/* 7-day tiles */}
@@ -554,7 +556,7 @@ export function Training() {
                     >
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={viewedWeek}
+                                key={safeViewedWeek}
                                 initial={{ opacity: 0, x: 10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -10 }}
@@ -566,7 +568,7 @@ export function Training() {
                                     const workout = workoutByDate[key];
                                     const isDayToday = isToday(day);
                                     const isSelected = isSameDay(day, selectedDate);
-                                    const color = workout ? (WORKOUT_COLORS[workout.type] ?? '#5ab2ff') : null;
+                                    const color = workout ? workoutZoneColor(workout) : null;
                                     const WIcon = workout ? (WORKOUT_ICONS[workout.type] ?? Activity) : null;
 
                                     return (
@@ -664,10 +666,10 @@ export function Training() {
                         {weekDays
                             .map(day => workoutByDate[day.toISOString().split('T')[0]])
                             .filter(Boolean)
-                            .filter((w, i, arr) => arr.findIndex(x => x.type === w.type) === i)
+                            .filter((w, i, arr) => arr.findIndex(x => x.type === w.type && workoutZoneKey(x) === workoutZoneKey(w)) === i)
                             .map(w => (
-                                <div key={w.type} className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: WORKOUT_COLORS[w.type] ?? '#5ab2ff' }} />
+                                <div key={`${w.type}-${workoutZoneKey(w) ?? 'zone'}`} className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: workoutZoneColor(w) }} />
                                     <span className="text-[9px] font-bold text-text-muted">{WORKOUT_LABELS[w.type] ?? w.type}</span>
                                 </div>
                             ))
@@ -788,6 +790,14 @@ function fmtDur(min: number | undefined): string | null {
     return min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, '0') : ''}` : `${min} min`;
 }
 
+function workoutZoneKey(workout: any): ZoneKey | undefined {
+    return (workout?.zone ?? workout?.targetZone) as ZoneKey | undefined;
+}
+
+function workoutZoneColor(workout: any): string {
+    return zoneColor(workoutZoneKey(workout));
+}
+
 const SEGMENT_STYLE = {
     warmup:   { color: '#f97316', icon: Flame,   label: 'Échauffement' },
     main:     { color: '#5ab2ff', icon: TrendingUp, label: 'Corps de séance' },
@@ -812,13 +822,11 @@ function WorkoutCard({
     onStart: () => void;
 }) {
     const [expanded, setExpanded] = useState(true);
-    const workoutColor = WORKOUT_COLORS[workout.type] ?? '#5ab2ff';
+    const zoneKey = workoutZoneKey(workout);
+    const workoutColor = workoutZoneColor(workout);
     const phaseColor = PHASE_CONFIG[workout.phase]?.color ?? '#5ab2ff';
     const workoutLabel = WORKOUT_LABELS[workout.type] ?? workout.type;
     const paceStr = fmtPaceRange(workout.targetPace);
-
-    // targetZone takes priority over legacy zone field
-    const zoneKey = (workout.targetZone ?? workout.zone) as ZoneKey | undefined;
     const hrRange = workout.targetHeartRate ?? (zoneKey ? paces?.zones?.[zoneKey] : null);
 
     // Group segments for display
@@ -1272,7 +1280,7 @@ function StatChip({ icon: Icon, value, accent, estimated }: { icon: React.Elemen
 
 // ─── Readiness check ─────────────────────────────────────────────────────────
 
-function ReadinessCheck({ check, week, paces }: { check: any; week: number; paces?: any }) {
+function ReadinessCheck({ check, week }: { check: any; week: number }) {
     const [selected, setSelected] = useState<'green' | 'amber' | 'red' | null>(null);
     const [dismissed, setDismissed] = useState(false);
     const [workoutExpanded, setWorkoutExpanded] = useState(false);
@@ -1281,6 +1289,7 @@ function ReadinessCheck({ check, week, paces }: { check: any; week: number; pace
 
     const selectedOption = check.options?.find((o: any) => o.value === selected);
     const suggestedWorkout = selectedOption?.suggestedWorkout;
+    const suggestedWorkoutColor = suggestedWorkout ? workoutZoneColor(suggestedWorkout) : '#5ab2ff';
     const isBiweekly = selectedOption?.suggestedFrequency === 'biweekly';
 
     const OPTION_STYLE: Record<string, { color: string; bg: string }> = {
@@ -1342,7 +1351,7 @@ function ReadinessCheck({ check, week, paces }: { check: any; week: number; pace
                         {/* Séance optionnelle — uniquement option Frais */}
                         {suggestedWorkout && (
                             <div className="mt-3 rounded-[16px] overflow-hidden border border-white/[0.08]"
-                                style={{ background: `${zoneColor(suggestedWorkout.targetZone)}08` }}>
+                                style={{ background: `${suggestedWorkoutColor}08` }}>
 
                                 {/* Header */}
                                 <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5"
@@ -1351,9 +1360,9 @@ function ReadinessCheck({ check, week, paces }: { check: any; week: number; pace
                                         <span
                                             className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border"
                                             style={{
-                                                color: zoneColor(suggestedWorkout.targetZone),
-                                                borderColor: `${zoneColor(suggestedWorkout.targetZone)}40`,
-                                                background: `${zoneColor(suggestedWorkout.targetZone)}15`,
+                                                color: suggestedWorkoutColor,
+                                                borderColor: `${suggestedWorkoutColor}40`,
+                                                background: `${suggestedWorkoutColor}15`,
                                             }}
                                         >
                                             {WORKOUT_LABELS[suggestedWorkout.type] ?? suggestedWorkout.type}
@@ -1376,7 +1385,7 @@ function ReadinessCheck({ check, week, paces }: { check: any; week: number; pace
                                 {/* Title + desc */}
                                 <div className="px-3.5 py-2.5">
                                     <p className="text-xs font-black text-white leading-tight mb-1"
-                                        style={{ color: zoneColor(suggestedWorkout.targetZone) }}>
+                                        style={{ color: suggestedWorkoutColor }}>
                                         {suggestedWorkout.title}
                                     </p>
                                     <p className="text-[10px] text-text-muted leading-relaxed">

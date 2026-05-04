@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Trophy, MessageCircle, Zap, X, Send, Loader2, Users, ChevronRight } from 'lucide-react';
+import { Shield, Trophy, MessageCircle, Zap, X, Send, Loader2, Users, ChevronRight, Link } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { CreateClanModal } from '../components/community/CreateClanModal';
 import { JoinClanModal } from '../components/community/JoinClanModal';
 import { LeaderboardTabs } from '../components/community/LeaderboardTabs';
 import { ClanCard } from '../components/community/ClanCard';
+import { MemberList } from '../components/community/MemberManagement';
+import { InviteSheet } from '../components/community/InviteSheet';
+import { useInvalidation, type QueryTag } from '../services/queryInvalidation';
 import { clsx } from 'clsx';
 
 // ── Clan leaderboard sub-component ──────────────────────────────────────
@@ -69,6 +72,7 @@ function ClanLeaderboard() {
 export function Community() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const { clanId: linkedClanId } = useParams();
     const [clan, setClan] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showChat, setShowChat] = useState(false);
@@ -78,6 +82,8 @@ export function Community() {
     const [filter, setFilter] = useState<'global' | 'local'>('global');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
+    const [showInviteSheet, setShowInviteSheet] = useState(false);
+    const currentClanId = clan?.id as string | undefined;
 
     const fetchMessages = useCallback(async (clanId: string) => {
         try {
@@ -113,6 +119,21 @@ export function Community() {
     }, [fetchMessages]);
 
     useEffect(() => { fetchClan(); }, [fetchClan]);
+    useEffect(() => {
+        if (linkedClanId) setActiveTab('clans');
+    }, [linkedClanId]);
+
+    const clanInvalidationTags = useMemo<QueryTag[]>(() => ['clans', 'my-clan'], []);
+    useInvalidation(clanInvalidationTags, fetchClan);
+
+    const messageInvalidationTags = useMemo<QueryTag[]>(
+        () => currentClanId ? [`clan-messages:${currentClanId}`] : [],
+        [currentClanId]
+    );
+    const refreshMessages = useCallback(() => {
+        if (currentClanId) return fetchMessages(currentClanId);
+    }, [currentClanId, fetchMessages]);
+    useInvalidation(messageInvalidationTags, refreshMessages);
 
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !clan) return;
@@ -123,23 +144,6 @@ export function Community() {
         } catch { /* silent */ }
     };
 
-    const handleLeaveClan = async () => {
-        if (!window.confirm('Voulez-vous vraiment quitter votre clan ?')) return;
-        try {
-            await api.post(`/clans/${clan.id}/leave`);
-            setClan(null);
-        } catch { setClan(null); }
-    };
-
-    const handleKickMember = async (userId: string) => {
-        if (!window.confirm('Voulez-vous vraiment exclure ce membre ?')) return;
-        try {
-            await api.delete(`/clans/${clan.id}/members/${userId}`);
-            fetchClan();
-        } catch {
-            alert("Impossible d'exclure ce membre pour le moment.");
-        }
-    };
 
     if (loading) {
         return (
@@ -158,6 +162,14 @@ export function Community() {
         <div className="pb-28 relative">
             <CreateClanModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreated={fetchClan} />
             <JoinClanModal isOpen={showJoinModal} onClose={() => setShowJoinModal(false)} onJoined={fetchClan} />
+            {clan && (
+                <InviteSheet
+                    clanId={clan.id}
+                    clanName={clan.name}
+                    isOpen={showInviteSheet}
+                    onClose={() => setShowInviteSheet(false)}
+                />
+            )}
 
             <div className="px-5 space-y-5 pt-7">
 
@@ -214,39 +226,53 @@ export function Community() {
                                 <div>
                                     <div className="flex justify-between items-center mb-3">
                                         <h3 className="text-sm font-bold text-text-muted">Votre clan</h3>
-                                        <button onClick={handleLeaveClan}
-                                            className="text-[10px] font-black text-red-400 hover:text-red-300 transition-colors">
-                                            Quitter
+                                        <button
+                                            onClick={() => setShowInviteSheet(true)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                                            style={{
+                                                background: 'rgba(90,178,255,0.12)',
+                                                border: '1px solid rgba(90,178,255,0.25)',
+                                                color: '#5ab2ff',
+                                            }}
+                                        >
+                                            <Link size={10} /> Inviter
                                         </button>
                                     </div>
                                     <ClanCard clan={clan} rank={1} onClick={() => {}} />
 
-                                    {/* Members management (leaders only) */}
-                                    {clan.role === 'leader' && clan.members && (
+                                    {/* Members — visible to leader and co_leader */}
+                                    {(clan.role === 'leader' || clan.role === 'co_leader') && clan.members && (
                                         <div className="mt-5">
-                                            <h3 className="text-sm font-bold text-text-muted mb-3">Gérer les membres</h3>
-                                            <div className="space-y-2">
-                                                {clan.members.map((member: any) => (
-                                                    <div key={member.id}
-                                                        className="flex items-center justify-between glass-card rounded-[20px] px-4 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-xl glass-hero flex items-center justify-center font-black text-xs text-primary">
-                                                                {member.name?.charAt(0)?.toUpperCase() || '?'}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm font-black text-white">{member.name}</p>
-                                                                <p className="text-[9px] text-text-muted font-bold uppercase tracking-widest">{member.role}</p>
-                                                            </div>
-                                                        </div>
-                                                        {member.userId !== user?.id && (
-                                                            <button onClick={() => handleKickMember(member.userId)}
-                                                                className="w-8 h-8 glass-card rounded-xl flex items-center justify-center text-text-muted/40 hover:text-red-400 transition-colors">
-                                                                <X size={14} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="text-sm font-bold text-text-muted">Membres</h3>
+                                                <span className="text-[10px] font-mono text-text-muted/50">{clan.members.length}</span>
                                             </div>
+                                            <MemberList
+                                                clanId={clan.id}
+                                                members={clan.members}
+                                                myUserId={user?.id ?? ''}
+                                                myRole={clan.role}
+                                                onRefresh={fetchClan}
+                                                onLeft={() => setClan(null)}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Members read-only for elder/member — just quit option */}
+                                    {(clan.role === 'elder' || clan.role === 'member') && clan.members && (
+                                        <div className="mt-5">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="text-sm font-bold text-text-muted">Membres</h3>
+                                                <span className="text-[10px] font-mono text-text-muted/50">{clan.members.length}</span>
+                                            </div>
+                                            <MemberList
+                                                clanId={clan.id}
+                                                members={clan.members}
+                                                myUserId={user?.id ?? ''}
+                                                myRole={clan.role}
+                                                onRefresh={fetchClan}
+                                                onLeft={() => setClan(null)}
+                                            />
                                         </div>
                                     )}
                                 </div>

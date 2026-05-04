@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Target, Star, Timer, Trophy, BarChart3, ChevronLeft, RotateCw, ChevronRight, Medal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { clsx } from 'clsx';
 
@@ -26,6 +27,7 @@ const TIMEFRAMES = [
 
 // ─────────────────────────────────────────────────────────────────────────
 export function Challenges() {
+    const { challengeId } = useParams();
     const [activeTab, setActiveTab] = useState<'challenges' | 'history' | 'leaderboard'>('challenges');
     const [timeframe, setTimeframe] = useState<'global' | 'weekly' | 'monthly'>('global');
     const [challenges, setChallenges] = useState<any[]>([]);
@@ -36,6 +38,20 @@ export function Challenges() {
     const [challengeLeaderboard, setChallengeLeaderboard] = useState<any[]>([]);
     const [refreshingId, setRefreshingId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+
+    const loadChallengeLeaderboard = useCallback(async (id: string) => {
+        try {
+            const res = await api.get(`/challenges/${id}/leaderboard`);
+            setChallengeLeaderboard(Array.isArray(res.data?.entries) ? res.data.entries : []);
+        } catch {
+            setChallengeLeaderboard([]);
+        }
+    }, []);
+
+    const openChallenge = useCallback(async (challenge: any) => {
+        setSelectedChallenge(challenge);
+        await loadChallengeLeaderboard(challenge.id);
+    }, [loadChallengeLeaderboard]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -49,13 +65,25 @@ export function Challenges() {
                     const activeChallenge = challengesRes.data?.challenge;
                     const myEntry = challengesRes.data?.myEntry;
                     const progress = challengesRes.data?.progress ?? 0;
-                    setChallenges(activeChallenge ? [{
+                    const normalizedChallenge = activeChallenge ? {
                         ...activeChallenge,
                         progress,
                         current: myEntry?.currentValue ?? 0,
                         goal: activeChallenge.targetValue,
-                    }] : []);
+                    } : null;
+                    setChallenges(normalizedChallenge ? [normalizedChallenge] : []);
                     setStats(statsRes.data);
+                    if (challengeId) {
+                        const linkedChallenge = normalizedChallenge?.id === challengeId
+                            ? normalizedChallenge
+                            : await api.get(`/challenges/${challengeId}`)
+                                .then(res => res.data?.challenge ?? res.data)
+                                .catch(() => null);
+                        if (linkedChallenge) {
+                            setSelectedChallenge(linkedChallenge);
+                            void loadChallengeLeaderboard(challengeId);
+                        }
+                    }
                 } else if (activeTab === 'history') {
                     const res = await api.get('/challenges/history');
                     setHistory(Array.isArray(res.data?.challenges) ? res.data.challenges : []);
@@ -67,15 +95,11 @@ export function Challenges() {
             } catch { /* silent */ }
             finally { setLoading(false); }
         };
-        fetchData();
-    }, [activeTab, timeframe]);
+        void fetchData();
+    }, [activeTab, challengeId, loadChallengeLeaderboard, timeframe]);
 
     const handleOpenChallenge = async (challenge: any) => {
-        setSelectedChallenge(challenge);
-        try {
-            const res = await api.get(`/challenges/${challenge.id}/leaderboard`);
-            setChallengeLeaderboard(Array.isArray(res.data?.entries) ? res.data.entries : []);
-        } catch { setChallengeLeaderboard([]); }
+        await openChallenge(challenge);
     };
 
     const handleRefresh = async (challengeId: string) => {

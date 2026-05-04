@@ -39,10 +39,20 @@ function App() {
               <Route path="/activities" element={<Activities />} />
               <Route path="/activities/:id" element={<ActivityDetail />} />
               <Route path="/challenges" element={<Challenges />} />
+              <Route path="/challenges/:challengeId" element={<Challenges />} />
+              <Route path="/challenge/:challengeId" element={<Challenges />} />
               <Route path="/community" element={<Community />} />
+              <Route path="/clans/:clanId" element={<Community />} />
+              <Route path="/clan/:clanId" element={<Community />} />
               <Route path="/wars" element={<Wars />} />
+              <Route path="/wars/:warId" element={<Wars />} />
+              <Route path="/wars/:warId/battles/:battleId" element={<Wars />} />
+              <Route path="/war/:warId" element={<Wars />} />
+              <Route path="/battle/:battleId" element={<Wars />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/notifications" element={<Notifications />} />
+              <Route path="/notifications/:notificationId" element={<Notifications />} />
+              <Route path="/notification/:notificationId" element={<Notifications />} />
               <Route path="/strava/callback" element={<StravaCallback />} />
               <Route path="/workout" element={<LiveWorkout />} />
               <Route path="/zones" element={<TrainingZones />} />

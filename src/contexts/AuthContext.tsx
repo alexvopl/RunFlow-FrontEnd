@@ -40,10 +40,13 @@ type SignupResult =
 interface ProfilePayload {
     id?: string;
     email?: string;
+    displayName?: string;
     display_name?: string;
     username?: string;
     trophies?: number;
+    followersCount?: number;
     followers_count?: number;
+    followingCount?: number;
     following_count?: number;
 }
 
@@ -63,12 +66,12 @@ const extractProfile = (payload: ProfileResponse | ProfilePayload | null): Profi
 };
 
 const mapUser = (authData: AuthUserPayload | null | undefined, profileData?: ProfilePayload | null): User => ({
-    id: authData?.userId ?? authData?.id ?? profileData?.id ?? '',
+    id: authData?.userId ?? authData?.user_id ?? authData?.id ?? profileData?.id ?? '',
     email: authData?.email ?? profileData?.email ?? '',
-    name: profileData?.display_name ?? profileData?.username ?? authData?.name,
+    name: profileData?.displayName ?? profileData?.display_name ?? profileData?.username ?? authData?.name,
     trophies: profileData?.trophies ?? authData?.trophies,
-    followersCount: profileData?.followers_count ?? authData?.followersCount,
-    followingCount: profileData?.following_count ?? authData?.followingCount,
+    followersCount: profileData?.followersCount ?? profileData?.followers_count ?? authData?.followersCount ?? authData?.followers_count,
+    followingCount: profileData?.followingCount ?? profileData?.following_count ?? authData?.followingCount ?? authData?.following_count,
 });
 
 const fetchCurrentUser = async () => {

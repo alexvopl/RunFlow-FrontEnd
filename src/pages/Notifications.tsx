@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Bell, CheckCheck, ChevronLeft, Loader2, Trophy, Swords, Users, Dumbbell, Zap } from 'lucide-react';
 import { api } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -39,8 +39,9 @@ export function Notifications() {
     const [loading, setLoading] = useState(true);
     const [markingAll, setMarkingAll] = useState(false);
     const navigate = useNavigate();
+    const { notificationId } = useParams();
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
         try {
             const res = await api.get('/notifications');
             const raw = res.data?.notifications ?? res.data;
@@ -58,18 +59,26 @@ export function Notifications() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    useEffect(() => { fetchNotifications(); }, []);
+    useEffect(() => { void fetchNotifications(); }, [fetchNotifications]);
 
-    const markAsRead = async (id: string) => {
+    const markAsRead = useCallback(async (id: string) => {
         try {
             await api.put(`/notifications/${id}/read`);
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
         } catch (err) {
             console.error(err);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!notificationId || loading) return;
+        const linkedNotification = notifications.find(n => n.id === notificationId);
+        if (linkedNotification && !linkedNotification.isRead) {
+            void markAsRead(notificationId);
+        }
+    }, [loading, markAsRead, notificationId, notifications]);
 
     const markAllAsRead = async () => {
         setMarkingAll(true);
@@ -160,6 +169,8 @@ export function Notifications() {
                                     onClick={() => !notif.isRead && markAsRead(notif.id)}
                                     className={`relative glass-card rounded-[22px] p-4 flex items-start gap-3.5 transition-all cursor-pointer active:scale-[0.98] ${
                                         notif.isRead ? 'opacity-50' : ''
+                                    } ${
+                                        notif.id === notificationId ? 'ring-1 ring-primary/40' : ''
                                     }`}
                                 >
                                     {/* Unread dot */}

@@ -235,7 +235,7 @@ export function WorkoutMap({ gpsPointsRef, distanceTrigger, className = '' }: Pr
         setIsFollowing(true);
     };
 
-    const hasPoints = distanceTrigger > 0 || gpsPointsRef.current.length > 0;
+    const hasPoints = distanceTrigger > 0;
 
     return (
         <div className={`relative overflow-hidden ${className}`}>

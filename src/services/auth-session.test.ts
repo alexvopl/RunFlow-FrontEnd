@@ -34,6 +34,38 @@ describe('resolveAuthSession', () => {
         });
     });
 
+    it('uses camelCase tokens after API response normalization', () => {
+        const result = resolveAuthSession({
+            accessToken: 'camel-access-token',
+            refreshToken: 'camel-refresh-token',
+            user: { id: 'user-5', email: 'camel@example.com' },
+        });
+
+        expect(result).toEqual({
+            accessToken: 'camel-access-token',
+            refreshToken: 'camel-refresh-token',
+            user: { id: 'user-5', email: 'camel@example.com' },
+            requiresEmailConfirmation: false,
+        });
+    });
+
+    it('uses nested camelCase session tokens after API response normalization', () => {
+        const result = resolveAuthSession({
+            user: { id: 'user-6', email: 'nested-camel@example.com' },
+            session: {
+                accessToken: 'nested-camel-access-token',
+                refreshToken: 'nested-camel-refresh-token',
+            },
+        });
+
+        expect(result).toEqual({
+            accessToken: 'nested-camel-access-token',
+            refreshToken: 'nested-camel-refresh-token',
+            user: { id: 'user-6', email: 'nested-camel@example.com' },
+            requiresEmailConfirmation: false,
+        });
+    });
+
     it('marks signup as pending confirmation when no session exists', () => {
         const result = resolveAuthSession({
             user: { id: 'user-3', email: 'pending@example.com' },

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Loader2, Shield, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
+import { resolveError } from '../../services/errors';
 
 interface CreateClanModalProps {
     isOpen: boolean;
@@ -31,7 +32,7 @@ export function CreateClanModal({ isOpen, onClose, onCreated }: CreateClanModalP
             setFormData({ name: '', description: '', isPublic: true, minWeeklyKm: 0, maxMembers: 50 });
         } catch (error) {
             console.error('Failed to create clan', error);
-            setErrorMessage('Impossible de créer ce clan pour le moment.');
+            setErrorMessage(resolveError(error, 'Impossible de créer ce clan pour le moment.'));
         } finally {
             setLoading(false);
         }

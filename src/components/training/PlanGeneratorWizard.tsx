@@ -123,6 +123,12 @@ function optionalNumber(value: string) {
     return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function optionalNumberInRange(value: string, min: number, max: number) {
+    const parsed = optionalNumber(value);
+    if (parsed === undefined) return undefined;
+    return parsed >= min && parsed <= max ? parsed : undefined;
+}
+
 function clampPlanWeeks(value: number) {
     return Math.min(MAX_PLAN_WEEKS, Math.max(MIN_PLAN_WEEKS, Math.round(value || MIN_PLAN_WEEKS)));
 }
@@ -231,11 +237,11 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const buildUserData = () => {
         const userData: Record<string, unknown> = {};
         const recentRaceTime = buildRecentRaceTime();
-        const age = optionalNumber(formData.age);
-        const restingHR = optionalNumber(formData.restingHR);
-        const maxHR = optionalNumber(formData.maxHR);
-        const aerobicThresholdHR = optionalNumber(formData.aerobicThresholdHR);
-        const lactateThresholdHR = optionalNumber(formData.lactateThresholdHR);
+        const age = optionalNumberInRange(formData.age, 10, 100);
+        const restingHR = optionalNumberInRange(formData.restingHR, 30, 100);
+        const maxHR = optionalNumberInRange(formData.maxHR, 120, 220);
+        const aerobicThresholdHR = optionalNumberInRange(formData.aerobicThresholdHR, 80, 210);
+        const lactateThresholdHR = optionalNumberInRange(formData.lactateThresholdHR, 80, 220);
 
         if (formData.currentWeeklyKm > 0) userData.currentWeeklyKm = formData.currentWeeklyKm;
         if (recentRaceTime) userData.recentRaceTime = recentRaceTime;
@@ -252,11 +258,11 @@ export function PlanGeneratorWizard({ onPlanGenerated }: PlanGeneratorProps) {
     const syncFitnessProfile = async () => {
         const recentRaceTime = buildRecentRaceTime();
         const profile: Record<string, unknown> = { level: formData.level };
-        const age = optionalNumber(formData.age);
-        const restingHR = optionalNumber(formData.restingHR);
-        const maxHR = optionalNumber(formData.maxHR);
-        const aerobicThresholdHR = optionalNumber(formData.aerobicThresholdHR);
-        const lactateThresholdHR = optionalNumber(formData.lactateThresholdHR);
+        const age = optionalNumberInRange(formData.age, 10, 100);
+        const restingHR = optionalNumberInRange(formData.restingHR, 30, 100);
+        const maxHR = optionalNumberInRange(formData.maxHR, 120, 220);
+        const aerobicThresholdHR = optionalNumberInRange(formData.aerobicThresholdHR, 80, 210);
+        const lactateThresholdHR = optionalNumberInRange(formData.lactateThresholdHR, 80, 220);
 
         if (age !== undefined) profile.age = age;
         if (restingHR !== undefined) profile.restingHR = restingHR;

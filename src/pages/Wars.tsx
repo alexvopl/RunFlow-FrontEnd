@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Swords, Timer, ShieldAlert, Users, Trophy, Zap, Shield, CheckCircle, Circle } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useWarData } from '../hooks/useWarData';
 import { api } from '../services/api';
+import { resolveError } from '../services/errors';
+import { useFeatureFlag } from '../services/featureFlags';
+import { useInvalidation, type QueryTag } from '../services/queryInvalidation';
 
 // ─────────────────────────────────────────────
 // Types
@@ -22,47 +27,6 @@ interface MyClanData {
         contributionDistanceM: number;
         contributionActivities: number;
     } | null;
-}
-
-interface WarOpponent {
-    clanId: string;
-    clanName: string;
-    clanBadgeUrl: string | null;
-    points: number;
-    rank: number;
-}
-
-interface Battle {
-    id: string;
-    battleType: string;
-    windowStart: string;
-    windowEnd: string;
-    status: string;
-    battleOrder: number;
-}
-
-interface ScoreEntry {
-    rank: number;
-    clanId: string;
-    clanName: string;
-    totalPoints: number;
-    contributors?: number;
-    contributions?: number;
-}
-
-interface WarCurrentData {
-    war: {
-        id: string;
-        status: string;
-        startsAt: string;
-        endsAt: string;
-        format: string;
-        weekNumber: number;
-    } | null;
-    opponents: WarOpponent[];
-    battles: Battle[];
-    myParticipations: Array<{ battleId: string; score: number; status: string }>;
-    hoursRemaining: number;
 }
 
 // ─────────────────────────────────────────────
@@ -108,52 +72,50 @@ const BATTLE_STATUS_LABELS: Record<string, string> = {
 // ─────────────────────────────────────────────
 
 export function Wars() {
+    const navigate = useNavigate();
+    const { warId, battleId } = useParams();
+    const warsEnabled = useFeatureFlag('GAME_WARS_V1');
     const [myClan, setMyClan] = useState<MyClanData | null>(null);
-    const [warData, setWarData] = useState<WarCurrentData | null>(null);
-    const [scoreboard, setScoreboard] = useState<ScoreEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [clanLoading, setClanLoading] = useState(true);
+    const [clanError, setClanError] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchWarData();
-    }, []);
-
-    const fetchWarData = async () => {
-        setLoading(true);
-        setError(null);
+    const fetchClan = useCallback(async () => {
+        setClanLoading(true);
+        setClanError(null);
         try {
-            // Get my clan first
             const clanRes = await api.get<MyClanData>('/clans/me');
             setMyClan(clanRes.data);
-
-            // If in a clan, get current war
-            if (clanRes.data.clan) {
-                try {
-                    const warRes = await api.get<WarCurrentData>('/game/wars/current');
-                    setWarData(warRes.data);
-
-                    // If war exists, get scoreboard
-                    if (warRes.data.war) {
-                        try {
-                            const sbRes = await api.get<{ scoreboard: ScoreEntry[] }>(
-                                `/game/wars/${warRes.data.war.id}/scoreboard`
-                            );
-                            setScoreboard(sbRes.data.scoreboard ?? []);
-                        } catch {
-                            // Scoreboard not critical
-                        }
-                    }
-                } catch {
-                    // Game Wars might be disabled (feature flag off) → treat as no war
-                    setWarData({ war: null, opponents: [], battles: [], myParticipations: [], hoursRemaining: 0 });
-                }
-            }
-        } catch {
-            setError('Impossible de charger les données.');
+        } catch (e) {
+            setClanError(resolveError(e, 'Impossible de charger les données.'));
         } finally {
-            setLoading(false);
+            setClanLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        void fetchClan();
+    }, [fetchClan]);
+
+    const clanInvalidationTags = useMemo<QueryTag[]>(() => ['clans', 'my-clan'], []);
+    useInvalidation(clanInvalidationTags, fetchClan);
+
+    const shouldLoadWar = Boolean(myClan?.clan) && warsEnabled !== false;
+    const {
+        data: warData,
+        loading: warLoading,
+        error: warError,
+        refresh: refreshWar,
+    } = useWarData(warId, { enabled: shouldLoadWar });
+
+    const fetchWarData = useCallback(() => {
+        void fetchClan();
+        if (shouldLoadWar) void refreshWar();
+    }, [fetchClan, refreshWar, shouldLoadWar]);
+
+    const loading = clanLoading
+        || (Boolean(myClan?.clan) && warsEnabled === null)
+        || (shouldLoadWar && warLoading && !warData.war);
+    const error = clanError ?? (shouldLoadWar ? warError : null);
 
     // ── Loading ──────────────────────────────
     if (loading) {
@@ -206,11 +168,17 @@ export function Wars() {
                         Rejoins un clan ou crée le tien pour participer aux guerres hebdomadaires !
                     </p>
                     <div className="flex flex-col gap-3">
-                        <button className="btn-primary py-3.5 font-black text-sm flex items-center justify-center gap-2">
+                        <button
+                            onClick={() => navigate('/community')}
+                            className="btn-primary py-3.5 font-black text-sm flex items-center justify-center gap-2"
+                        >
                             <Users size={16} />
                             Rejoindre un clan
                         </button>
-                        <button className="glass-card rounded-full py-3.5 font-black text-sm text-white flex items-center justify-center gap-2 border border-white/10 hover:border-primary/30 transition-colors">
+                        <button
+                            onClick={() => navigate('/community')}
+                            className="glass-card rounded-full py-3.5 font-black text-sm text-white flex items-center justify-center gap-2 border border-white/10 hover:border-primary/30 transition-colors"
+                        >
                             <Swords size={16} className="text-primary" />
                             Créer mon clan
                         </button>
@@ -221,11 +189,12 @@ export function Wars() {
     }
 
     const clan = myClan.clan;
-    const war = warData?.war ?? null;
-    const opponents = warData?.opponents ?? [];
-    const battles = warData?.battles ?? [];
-    const myParticipations = warData?.myParticipations ?? [];
-    const hoursRemaining = warData?.hoursRemaining ?? 0;
+    const war = warData.war;
+    const opponents = warData.opponents;
+    const battles = warData.battles;
+    const myParticipations = warData.myParticipations;
+    const hoursRemaining = warData.hoursRemaining;
+    const scoreboard = warData.scoreboard;
 
     // My clan's score from scoreboard
     const myScore = scoreboard.find(s => s.clanId === clan.id);
@@ -284,7 +253,9 @@ export function Wars() {
                     </div>
                     <p className="font-black text-white mb-1">Aucune guerre en cours</p>
                     <p className="text-text-muted text-sm">
-                        La prochaine guerre sera planifiée automatiquement. Reviens bientôt !
+                        {warsEnabled === false
+                            ? 'Les guerres ne sont pas encore disponibles sur cette API.'
+                            : 'La prochaine guerre sera planifiée automatiquement. Reviens bientôt !'}
                     </p>
                 </motion.div>
             </div>
@@ -440,7 +411,7 @@ export function Wars() {
                                             initial={{ opacity: 0, y: 8 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: i * 0.04 }}
-                                            className="rf-activity-row group"
+                                            className={`rf-activity-row group ${battleId === battle.id ? 'ring-1 ring-primary/40' : ''}`}
                                         >
                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
                                                 participated ? 'glass-hero' :

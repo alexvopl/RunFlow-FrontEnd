@@ -3,6 +3,7 @@ import axios, {
     type AxiosError,
     type InternalAxiosRequestConfig,
 } from 'axios';
+import { notifyInvalidation, type QueryTag } from './queryInvalidation';
 
 const rawApiUrl = import.meta.env.VITE_API_URL?.trim();
 
@@ -10,7 +11,12 @@ if (!rawApiUrl) {
     throw new Error('Missing VITE_API_URL. Add it to your environment before starting the app.');
 }
 
-const API_URL = rawApiUrl.replace(/\/+$/, '');
+const withApiBasePath = (value: string) => {
+    const trimmed = value.replace(/\/+$/, '');
+    return trimmed === '/api' || trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+};
+
+const API_URL = withApiBasePath(rawApiUrl);
 
 const ACCESS_TOKEN_KEY = 'runflow_access_token';
 
@@ -148,9 +154,111 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
+// ── snake_case → camelCase normalizer ───────────────────────────────────────
+
+function toCamelCase(str: string): string {
+    return str.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+function normalizeKeys(obj: unknown): unknown {
+    if (Array.isArray(obj)) return obj.map(normalizeKeys);
+    if (obj !== null && typeof obj === 'object') {
+        return Object.fromEntries(
+            Object.entries(obj as Record<string, unknown>).map(([k, v]) => [
+                toCamelCase(k),
+                normalizeKeys(v),
+            ])
+        );
+    }
+    return obj;
+}
+
+function normalizeResponseData(data: unknown): unknown {
+    if (data == null || typeof data !== 'object') return data;
+    return normalizeKeys(data);
+}
+
+function normalizeRequestPath(rawUrl?: string): string {
+    if (!rawUrl) return '/';
+    try {
+        const path = new URL(rawUrl, 'http://runflow.local').pathname;
+        return (path.replace(/^\/api(?=\/|$)/, '').replace(/\/+$/, '') || '/');
+    } catch {
+        return rawUrl.replace(/^\/api(?=\/|$)/, '').replace(/\/+$/, '') || '/';
+    }
+}
+
+function mutationInvalidationTags(method?: string, rawUrl?: string): QueryTag[] {
+    const verb = method?.toUpperCase();
+    if (!verb || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(verb)) return [];
+
+    const path = normalizeRequestPath(rawUrl);
+    const tags = new Set<QueryTag>();
+    const add = (...next: QueryTag[]) => next.forEach(tag => tags.add(tag));
+
+    if (path === '/clans' && verb === 'POST') add('clans', 'my-clan', 'wars');
+    if (path === '/clans/join' && verb === 'POST') add('clans', 'my-clan', 'wars');
+    if (/^\/clans\/join\/[^/]+$/.test(path) && verb === 'POST') add('clans', 'my-clan', 'wars');
+
+    let match = path.match(/^\/clans\/([^/]+)\/join$/);
+    if (match && verb === 'POST') add('clans', 'my-clan', 'wars', `clan:${match[1]}`);
+
+    match = path.match(/^\/clans\/([^/]+)\/leave$/);
+    if (match && verb === 'POST') add('clans', 'my-clan', 'wars', `clan:${match[1]}`, `clan-members:${match[1]}`);
+
+    match = path.match(/^\/clans\/([^/]+)\/members\/[^/]+$/);
+    if (match && ['PUT', 'PATCH', 'DELETE'].includes(verb)) {
+        add('my-clan', 'wars', `clan:${match[1]}`, `clan-members:${match[1]}`);
+    }
+
+    match = path.match(/^\/clans\/([^/]+)\/messages$/);
+    if (match && verb === 'POST') add(`clan-messages:${match[1]}`);
+
+    match = path.match(/^\/clans\/([^/]+)\/invites$/);
+    if (match && verb === 'POST') add(`clan:${match[1]}`);
+
+    match = path.match(/^\/game\/wars\/([^/]+)/);
+    if (match) {
+        add('wars', `war:${match[1]}`);
+        if (path.includes('/scoreboard') || path.includes('/credit') || path.includes('/vote')) {
+            add(`war-scoreboard:${match[1]}`);
+        }
+        if (path.includes('/highlights')) add(`war-highlights:${match[1]}`);
+        if (path.includes('/timeline')) add(`war-timeline:${match[1]}`);
+    }
+
+    match = path.match(/^\/game\/battles\/([^/]+)/);
+    if (match) add('wars', `battle:${match[1]}`);
+
+    if (path.includes('/vote')) add('wars');
+    if (path.includes('/credit')) add('wars', 'activities', 'challenges');
+
+    match = path.match(/^\/challenges\/([^/]+)/);
+    if (match) add('challenges', `challenge:${match[1]}`);
+
+    if (path.startsWith('/activities')) add('activities', 'challenges', 'wars');
+    if (path.startsWith('/notifications')) add('notifications');
+    if (path.startsWith('/training')) add('training');
+    if (path.startsWith('/equipment')) add('equipment');
+    if (path.startsWith('/profiles')) add('profile');
+
+    return [...tags];
+}
+
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        response.data = normalizeResponseData(response.data);
+        notifyInvalidation(
+            mutationInvalidationTags(response.config.method, response.config.url),
+            { method: response.config.method?.toUpperCase(), url: normalizeRequestPath(response.config.url) }
+        );
+        return response;
+    },
     async (error: AxiosError) => {
+        if (error.response) {
+            error.response.data = normalizeResponseData(error.response.data);
+        }
+
         const originalRequest = error.config as RetriableRequestConfig | undefined;
         const requestUrl = originalRequest?.url ?? '';
         const isRefreshRequest = requestUrl.includes('/auth/refresh');
