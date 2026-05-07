@@ -2,6 +2,7 @@ import { Calendar, Users, User, Activity, Swords } from 'lucide-react';
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
+import { useUnreadCount } from '../../hooks/useUnreadCount';
 
 const navItems = [
     { path: '/', icon: Calendar, label: 'Plan' },
@@ -13,6 +14,7 @@ const navItems = [
 
 export function BottomNav() {
     const location = useLocation();
+    const unreadCount = useUnreadCount();
 
     return (
         <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pointer-events-none">
@@ -55,6 +57,13 @@ export function BottomNav() {
                                             initial={false}
                                             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                                         />
+                                    )}
+                                    {item.path === '/profile' && unreadCount > 0 && (
+                                        <div className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] bg-red-500 rounded-full flex items-center justify-center px-0.5">
+                                            <span className="text-[8px] font-black text-white leading-none">
+                                                {unreadCount > 9 ? '9+' : unreadCount}
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
                                 <span className={clsx(

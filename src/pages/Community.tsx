@@ -1,97 +1,32 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Trophy, MessageCircle, Zap, X, Send, Loader2, Users, ChevronRight, Link } from 'lucide-react';
+import { Shield, Trophy, Zap, Users, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CreateClanModal } from '../components/community/CreateClanModal';
 import { JoinClanModal } from '../components/community/JoinClanModal';
 import { LeaderboardTabs } from '../components/community/LeaderboardTabs';
-import { ClanCard } from '../components/community/ClanCard';
-import { MemberList } from '../components/community/MemberManagement';
 import { InviteSheet } from '../components/community/InviteSheet';
+import { ClanHome, type ClanHomeData, type MembershipData } from '../components/community/ClanHome';
+import { ClanChat } from '../components/community/ClanChat';
+import { UserLeaderboard } from '../components/leaderboard/UserLeaderboard';
+import { ClanLeaderboard } from '../components/leaderboard/ClanLeaderboard';
 import { useInvalidation, type QueryTag } from '../services/queryInvalidation';
-import { clsx } from 'clsx';
-
-// ── Clan leaderboard sub-component ──────────────────────────────────────
-function ClanLeaderboard() {
-    const [clans, setClans] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        api.get('/leaderboards/clans')
-            .then(res => setClans(Array.isArray(res.data?.rankings) ? res.data.rankings : []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
-
-    if (loading) return (
-        <div className="flex justify-center py-8">
-            <Loader2 className="animate-spin text-primary" size={24} />
-        </div>
-    );
-
-    if (clans.length === 0) return (
-        <div className="glass-card rounded-[24px] p-8 text-center border-dashed">
-            <p className="text-text-muted text-sm font-bold">Aucun classement disponible</p>
-        </div>
-    );
-
-    return (
-        <div className="space-y-2">
-            {clans.map((clan: any, i: number) => (
-                <motion.div key={clan.id || i}
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-                    className={clsx('rf-activity-row', i < 3 && 'glass-hero')}>
-                    {/* Rank */}
-                    {i === 0 && <div className="w-7 h-7 rounded-lg bg-rank-gold flex items-center justify-center font-black text-black text-xs flex-shrink-0">1</div>}
-                    {i === 1 && <div className="w-7 h-7 rounded-lg bg-rank-silver flex items-center justify-center font-black text-black text-xs flex-shrink-0">2</div>}
-                    {i === 2 && <div className="w-7 h-7 rounded-lg bg-rank-bronze flex items-center justify-center font-black text-white text-xs flex-shrink-0">3</div>}
-                    {i > 2 && <div className="w-7 h-7 rounded-lg glass-card flex items-center justify-center font-black text-text-muted text-xs flex-shrink-0">{i + 1}</div>}
-
-                    <div className="w-10 h-10 rounded-2xl glass-card flex items-center justify-center font-black text-primary text-sm flex-shrink-0">
-                        {clan.name?.charAt(0)?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="font-black text-sm text-white truncate">{clan.name}</p>
-                        <p className="text-[10px] text-text-muted font-bold">{clan.memberCount || 0} membres</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                        <p className="font-black text-sm text-white">
-                            {(((clan.totalDistanceM || clan.totalDistance || 0) as number) / 1000).toFixed(0)}
-                        </p>
-                        <p className="text-[9px] text-primary font-black">km</p>
-                    </div>
-                </motion.div>
-            ))}
-        </div>
-    );
-}
 
 // ────────────────────────────────────────────────────────────────────────
 export function Community() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { clanId: linkedClanId } = useParams();
+    const [searchParams] = useSearchParams();
     const [clan, setClan] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showChat, setShowChat] = useState(false);
-    const [messages, setMessages] = useState<any[]>([]);
-    const [newMessage, setNewMessage] = useState('');
     const [activeTab, setActiveTab] = useState<'players' | 'clans' | 'wars'>('clans');
-    const [filter, setFilter] = useState<'global' | 'local'>('global');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
     const [showInviteSheet, setShowInviteSheet] = useState(false);
-    const currentClanId = clan?.id as string | undefined;
-
-    const fetchMessages = useCallback(async (clanId: string) => {
-        try {
-            const res = await api.get(`/clans/${clanId}/messages`);
-            setMessages(Array.isArray(res.data?.messages) ? res.data.messages : []);
-        } catch { /* silent */ }
-    }, []);
-
     const fetchClan = useCallback(async () => {
         setLoading(true);
         try {
@@ -107,42 +42,30 @@ export function Community() {
                 ...myClan,
                 members: clanDetails?.members,
                 role: membership?.role,
+                membership: membership,
                 score: Math.round((myClan.totalDistanceM ?? 0) / 1000),
                 level: 1,
             } : null;
             setClan(normalizedClan);
-            if (normalizedClan?.id) fetchMessages(normalizedClan.id);
         } catch (error: any) {
             if (error.response?.status !== 404) console.error('Failed to fetch clan', error);
             setClan(null);
         } finally { setLoading(false); }
-    }, [fetchMessages]);
+    }, []);
 
     useEffect(() => { fetchClan(); }, [fetchClan]);
+
+    // Deep link: open chat when ?chat=1 is in URL
+    useEffect(() => {
+        if (searchParams.get('chat') === '1' && clan) setShowChat(true);
+    }, [searchParams, clan]);
+
     useEffect(() => {
         if (linkedClanId) setActiveTab('clans');
     }, [linkedClanId]);
 
     const clanInvalidationTags = useMemo<QueryTag[]>(() => ['clans', 'my-clan'], []);
     useInvalidation(clanInvalidationTags, fetchClan);
-
-    const messageInvalidationTags = useMemo<QueryTag[]>(
-        () => currentClanId ? [`clan-messages:${currentClanId}`] : [],
-        [currentClanId]
-    );
-    const refreshMessages = useCallback(() => {
-        if (currentClanId) return fetchMessages(currentClanId);
-    }, [currentClanId, fetchMessages]);
-    useInvalidation(messageInvalidationTags, refreshMessages);
-
-    const handleSendMessage = async () => {
-        if (!newMessage.trim() || !clan) return;
-        try {
-            await api.post(`/clans/${clan.id}/messages`, { content: newMessage });
-            setNewMessage('');
-            fetchMessages(clan.id);
-        } catch { /* silent */ }
-    };
 
 
     if (loading) {
@@ -200,20 +123,6 @@ export function Community() {
                 {/* ── Tabs ────────────────────────────────────────── */}
                 <LeaderboardTabs activeTab={activeTab} onChange={setActiveTab} />
 
-                {/* ── Global / Local filter ────────────────────────── */}
-                {activeTab !== 'wars' && (
-                    <div className="flex gap-2 p-1 glass-card rounded-2xl w-fit">
-                        {(['global', 'local'] as const).map(f => (
-                            <button key={f} onClick={() => setFilter(f)}
-                                className={clsx(
-                                    'px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all',
-                                    filter === f ? 'bg-white text-black shadow-md' : 'text-text-muted hover:text-white'
-                                )}>
-                                {f === 'global' ? 'Monde' : 'Local'}
-                            </button>
-                        ))}
-                    </div>
-                )}
 
                 {/* ── Tab content ──────────────────────────────────── */}
                 <AnimatePresence mode="wait">
@@ -223,59 +132,15 @@ export function Community() {
                         <motion.div key="clans" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                             className="space-y-4">
                             {clan ? (
-                                <div>
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h3 className="text-sm font-bold text-text-muted">Votre clan</h3>
-                                        <button
-                                            onClick={() => setShowInviteSheet(true)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
-                                            style={{
-                                                background: 'rgba(90,178,255,0.12)',
-                                                border: '1px solid rgba(90,178,255,0.25)',
-                                                color: '#5ab2ff',
-                                            }}
-                                        >
-                                            <Link size={10} /> Inviter
-                                        </button>
-                                    </div>
-                                    <ClanCard clan={clan} rank={1} onClick={() => {}} />
-
-                                    {/* Members — visible to leader and co_leader */}
-                                    {(clan.role === 'leader' || clan.role === 'co_leader') && clan.members && (
-                                        <div className="mt-5">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-sm font-bold text-text-muted">Membres</h3>
-                                                <span className="text-[10px] font-mono text-text-muted/50">{clan.members.length}</span>
-                                            </div>
-                                            <MemberList
-                                                clanId={clan.id}
-                                                members={clan.members}
-                                                myUserId={user?.id ?? ''}
-                                                myRole={clan.role}
-                                                onRefresh={fetchClan}
-                                                onLeft={() => setClan(null)}
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* Members read-only for elder/member — just quit option */}
-                                    {(clan.role === 'elder' || clan.role === 'member') && clan.members && (
-                                        <div className="mt-5">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-sm font-bold text-text-muted">Membres</h3>
-                                                <span className="text-[10px] font-mono text-text-muted/50">{clan.members.length}</span>
-                                            </div>
-                                            <MemberList
-                                                clanId={clan.id}
-                                                members={clan.members}
-                                                myUserId={user?.id ?? ''}
-                                                myRole={clan.role}
-                                                onRefresh={fetchClan}
-                                                onLeft={() => setClan(null)}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
+                                <ClanHome
+                                    clan={clan as ClanHomeData}
+                                    membership={(clan.membership ?? { role: clan.role }) as MembershipData}
+                                    myUserId={user?.id ?? ''}
+                                    onInvite={() => setShowInviteSheet(true)}
+                                    onChat={() => setShowChat(true)}
+                                    onRefresh={fetchClan}
+                                    onLeft={() => setClan(null)}
+                                />
                             ) : (
                                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                                     className="glass-hero rounded-[28px] p-8 text-center">
@@ -309,13 +174,7 @@ export function Community() {
                     {/* PLAYERS */}
                     {activeTab === 'players' && (
                         <motion.div key="players" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                            <div className="glass-card rounded-[24px] p-10 text-center border-dashed">
-                                <div className="glass-hero w-16 h-16 rounded-[20px] flex items-center justify-center mx-auto mb-4">
-                                    <Users size={28} className="text-primary" />
-                                </div>
-                                <p className="font-bold text-white mb-1">Classement mondial</p>
-                                <p className="text-text-muted text-sm">Disponible très bientôt 👀</p>
-                            </div>
+                            <UserLeaderboard myUserId={user?.id} />
                         </motion.div>
                     )}
 
@@ -343,86 +202,19 @@ export function Community() {
                 </AnimatePresence>
             </div>
 
-            {/* ── Chat overlay ──────────────────────────────────────── */}
-            <AnimatePresence>
-                {showChat && clan && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            onClick={() => setShowChat(false)}
-                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-                        <motion.div
-                            initial={{ y: '100%' }} animate={{ y: '10%' }} exit={{ y: '100%' }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                            className="fixed inset-x-0 bottom-0 top-0 glass-heavy rounded-t-[32px] z-50 flex flex-col max-w-md mx-auto"
-                        >
-                            {/* Chat header */}
-                            <div className="flex items-center justify-between px-5 py-4 border-b border-white/8 flex-shrink-0">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl glass-hero flex items-center justify-center">
-                                        <MessageCircle size={16} className="text-primary" />
-                                    </div>
-                                    <span className="font-black text-white text-sm">{clan.name}</span>
-                                </div>
-                                <button onClick={() => setShowChat(false)}
-                                    className="w-9 h-9 glass-card rounded-xl flex items-center justify-center text-text-muted hover:text-white transition-colors">
-                                    <X size={18} />
-                                </button>
-                            </div>
-
-                            {/* Messages */}
-                            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-                                {messages.map((msg: any) => (
-                                    <div key={msg.id} className={`flex gap-2.5 ${msg.userId === user?.id ? 'flex-row-reverse' : ''}`}>
-                                        <div className="w-7 h-7 rounded-xl glass-card flex-shrink-0 flex items-center justify-center text-[10px] font-black text-primary">
-                                            {(msg.displayName || msg.username || '?').charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className={`px-3.5 py-2.5 rounded-2xl max-w-[78%] ${
-                                            msg.userId === user?.id
-                                                ? 'bg-primary/15 border border-primary/20 rounded-tr-sm'
-                                                : 'glass-card rounded-tl-sm'
-                                        }`}>
-                                            <p className={`text-[10px] font-black mb-1 ${msg.userId === user?.id ? 'text-primary' : 'text-text-muted'}`}>
-                                                {msg.displayName || msg.username || 'Inconnu'}
-                                            </p>
-                                            <p className="text-sm text-white leading-snug">{msg.content}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                                {messages.length === 0 && (
-                                    <div className="text-center text-text-muted text-xs font-bold py-12">
-                                        Aucun message pour l'instant.
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Input */}
-                            <div className="px-4 py-4 border-t border-white/8 flex-shrink-0 pb-8">
-                                <div className="flex gap-2">
-                                    <input type="text" placeholder="Écrire un message…" value={newMessage}
-                                        onChange={e => setNewMessage(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                                        className="flex-1 glass-card rounded-2xl px-4 py-3 text-sm text-white placeholder:text-text-muted focus:outline-none focus:border-primary/40 transition-all" />
-                                    <button onClick={handleSendMessage} disabled={!newMessage.trim()}
-                                        className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white disabled:opacity-40 active:scale-95 transition-all shadow-[0_4px_12px_rgba(90,178,255,0.3)]">
-                                        <Send size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-
-            {/* ── Chat FAB ──────────────────────────────────────────── */}
-            {clan && !showChat && (
-                <motion.button
-                    initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowChat(true)}
-                    className="fixed right-5 bottom-24 w-14 h-14 bg-primary text-white rounded-2xl shadow-[0_8px_24px_rgba(90,178,255,0.4)] flex items-center justify-center z-40"
-                >
-                    <MessageCircle size={24} />
-                </motion.button>
+            {/* ── Chat ──────────────────────────────────────────────── */}
+            {clan && (
+                <ClanChat
+                    clanId={clan.id}
+                    clanName={clan.name}
+                    myUser={{
+                        id: user?.id ?? '',
+                        displayName: user?.name,
+                        avatarUrl: null,
+                    }}
+                    isOpen={showChat}
+                    onClose={() => setShowChat(false)}
+                />
             )}
         </div>
     );

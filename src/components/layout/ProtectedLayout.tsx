@@ -1,9 +1,11 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { usePushToken } from '../../hooks/usePushToken';
 
 export function ProtectedLayout() {
     const { isAuthenticated, isLoading } = useAuth();
+    usePushToken();
 
     if (isLoading) {
         return (

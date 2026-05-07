@@ -186,7 +186,7 @@ export function TrainingZones() {
                     const planRes = await api.get(`/training/plans/${plans[0].id}`);
                     const plan = planRes.data?.plan ?? planRes.data;
                     setPaces(plan.paces);
-                    prefillForm(plan.user_data ?? {});
+                    prefillForm(plan.userData ?? {});
                 }
             } catch { /* silent */ }
         }

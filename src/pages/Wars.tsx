@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, Timer, ShieldAlert, Users, Trophy, Zap, Shield, CheckCircle, Circle } from 'lucide-react';
+import { Swords, Timer, ShieldAlert, Users, Shield, CalendarDays, Flame } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useWarData } from '../hooks/useWarData';
 import { api } from '../services/api';
 import { resolveError } from '../services/errors';
 import { useFeatureFlag } from '../services/featureFlags';
 import { useInvalidation, type QueryTag } from '../services/queryInvalidation';
+import { SeasonView } from '../components/community/SeasonView';
+import { ActiveWarView } from '../components/community/ActiveWarView';
+import { ClanRivalriesView } from '../components/community/ClanRivalriesView';
 
 // ─────────────────────────────────────────────
 // Types
@@ -49,32 +52,15 @@ function formatHours(h: number): string {
     return `${hours}h ${minutes}m`;
 }
 
-const BATTLE_TYPE_LABELS: Record<string, string> = {
-    distance: 'Distance totale',
-    pace: 'Meilleure allure',
-    elevation: 'Dénivelé',
-    streak: 'Régularité',
-    time: 'Temps de course',
-};
-
-const BATTLE_STATUS_LABELS: Record<string, string> = {
-    scheduled: 'À venir',
-    upcoming: 'Bientôt',
-    active: 'En cours',
-    open: 'En cours',
-    completed: 'Terminé',
-    finalized: 'Finalisé',
-    closed: 'Clôturé',
-};
-
 // ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
 
 export function Wars() {
     const navigate = useNavigate();
-    const { warId, battleId } = useParams();
+    const { warId } = useParams();
     const warsEnabled = useFeatureFlag('GAME_WARS_V1');
+    const [tab, setTab] = useState<'war' | 'season' | 'rivalries'>('war');
     const [myClan, setMyClan] = useState<MyClanData | null>(null);
     const [clanLoading, setClanLoading] = useState(true);
     const [clanError, setClanError] = useState<string | null>(null);
@@ -196,25 +182,11 @@ export function Wars() {
     const hoursRemaining = warData.hoursRemaining;
     const scoreboard = warData.scoreboard;
 
-    // My clan's score from scoreboard
-    const myScore = scoreboard.find(s => s.clanId === clan.id);
-    const opponentScore = opponents[0] ? scoreboard.find(s => s.clanId === opponents[0].clanId) : null;
-
-    const myPoints = myScore?.totalPoints ?? 0;
-    const opponentPoints = opponentScore?.totalPoints ?? opponents[0]?.points ?? 0;
-    const totalPoints = myPoints + opponentPoints;
-    const myPct = totalPoints > 0 ? Math.round((myPoints / totalPoints) * 100) : 50;
-    const opponentPct = totalPoints > 0 ? 100 - myPct : 50;
-
-    const opponent = opponents[0] ?? null;
-
-    const participatedIds = new Set(myParticipations.map(p => p.battleId));
-
     // ── No war active ────────────────────────
     if (!war) {
         return (
-            <div className="px-5 pt-7 pb-28">
-                <header className="mb-6">
+            <div className="px-5 pt-7 pb-28 space-y-5">
+                <header>
                     <h1 className="text-[1.7rem] font-black tracking-tight leading-tight text-white">Guerres</h1>
                     <p className="text-text-muted text-sm mt-0.5">Défie d'autres clans</p>
                 </header>
@@ -223,7 +195,7 @@ export function Wars() {
                 <motion.div
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="glass-hero rounded-[28px] p-5 mb-4"
+                    className="glass-hero rounded-[28px] p-5"
                 >
                     <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
@@ -241,23 +213,34 @@ export function Wars() {
                     </div>
                 </motion.div>
 
-                {/* No war state */}
-                <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="glass-card rounded-[28px] p-8 text-center border-dashed"
-                >
-                    <div className="w-16 h-16 glass-hero rounded-[20px] flex items-center justify-center mx-auto mb-4">
-                        <Swords size={26} className="text-primary/60" />
-                    </div>
-                    <p className="font-black text-white mb-1">Aucune guerre en cours</p>
-                    <p className="text-text-muted text-sm">
-                        {warsEnabled === false
-                            ? 'Les guerres ne sont pas encore disponibles sur cette API.'
-                            : 'La prochaine guerre sera planifiée automatiquement. Reviens bientôt !'}
-                    </p>
-                </motion.div>
+                {/* Tab switcher */}
+                <WarTabSwitcher tab={tab} onChange={setTab} />
+
+                <AnimatePresence mode="wait">
+                    {tab === 'war' ? (
+                        <motion.div key="war" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            <div className="glass-card rounded-[28px] p-8 text-center border-dashed">
+                                <div className="w-16 h-16 glass-hero rounded-[20px] flex items-center justify-center mx-auto mb-4">
+                                    <Swords size={26} className="text-primary/60" />
+                                </div>
+                                <p className="font-black text-white mb-1">Aucune guerre en cours</p>
+                                <p className="text-text-muted text-sm">
+                                    {warsEnabled === false
+                                        ? 'Les guerres ne sont pas encore disponibles sur cette API.'
+                                        : 'La prochaine guerre sera planifiée automatiquement. Reviens bientôt !'}
+                                </p>
+                            </div>
+                        </motion.div>
+                    ) : tab === 'rivalries' ? (
+                        <motion.div key="rivalries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            <ClanRivalriesView myClanId={clan.id} />
+                        </motion.div>
+                    ) : (
+                        <motion.div key="season" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            <SeasonView clanId={clan.id} clanName={clan.name} />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         );
     }
@@ -270,14 +253,30 @@ export function Wars() {
                 {/* Header */}
                 <header className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-[1.7rem] font-black tracking-tight leading-tight text-white">Guerre</h1>
-                        <p className="text-text-muted text-sm mt-0.5">Semaine {war.weekNumber}</p>
+                        <h1 className="text-[1.7rem] font-black tracking-tight leading-tight text-white">
+                            {tab === 'season' ? 'Saison' : tab === 'rivalries' ? 'Rivalités' : 'Guerre'}
+                        </h1>
+                        <p className="text-text-muted text-sm mt-0.5">
+                            {tab === 'season' || tab === 'rivalries' ? clan.name : `Semaine ${war.weekNumber}`}
+                        </p>
                     </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/15 border border-red-500/25">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                        <span className="text-red-400 text-[10px] font-black uppercase tracking-wider">En cours</span>
-                    </div>
+                    {tab === 'war' && <WarStatusBadge status={war.status} />}
                 </header>
+
+                {/* Tab switcher */}
+                <WarTabSwitcher tab={tab} onChange={setTab} />
+
+                <AnimatePresence mode="wait">
+                {tab === 'season' ? (
+                    <motion.div key="season" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                        <SeasonView clanId={clan.id} clanName={clan.name} />
+                    </motion.div>
+                ) : tab === 'rivalries' ? (
+                    <motion.div key="rivalries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                        <ClanRivalriesView myClanId={clan.id} />
+                    </motion.div>
+                ) : (
+                <motion.div key="war" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
 
                 {/* Time remaining */}
                 <motion.div
@@ -289,177 +288,101 @@ export function Wars() {
                         <Timer size={18} className="text-primary" />
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold text-text-muted">Temps restant</p>
-                        <p className="font-black text-white text-base">{formatHours(hoursRemaining)}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30">Temps restant</p>
+                        <p className="font-mono font-black text-white text-base">{formatHours(hoursRemaining)}</p>
                     </div>
                 </motion.div>
 
-                {/* VS Card */}
-                <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                    className="glass-hero rounded-[28px] p-5"
-                >
-                    {/* Clans row */}
-                    <div className="flex items-center justify-between mb-6">
-                        {/* My clan */}
-                        <div className="flex-1 text-center">
-                            <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center mb-2.5 shadow-[0_0_18px_rgba(90,178,255,0.25)]">
-                                <span className="text-primary font-black text-xl">{clanInitials(clan.name)}</span>
-                            </div>
-                            <p className="font-black text-white text-sm leading-tight">{clan.name}</p>
-                            <p className="text-primary font-black text-sm mt-0.5">{myPoints.toLocaleString()} pts</p>
-                        </div>
+                <ActiveWarView
+                    warId={war.id}
+                    war={war}
+                    opponents={opponents}
+                    battles={battles}
+                    myParticipations={myParticipations}
+                    hoursRemaining={hoursRemaining}
+                    scoreboard={scoreboard}
+                    highlights={warData.highlights}
+                    timeline={warData.timeline}
+                    aggregates={warData.aggregates}
+                    myClanId={clan.id}
+                    myClanName={clan.name}
+                    myRole={myClan.membership?.role ?? 'member'}
+                    contributionKm={(myClan.membership?.contributionDistanceM ?? 0) / 1000}
+                    contributionActivities={myClan.membership?.contributionActivities ?? 0}
+                    rivalryContext={warData.rivalryContext}
+                    onRefresh={fetchWarData}
+                />
 
-                        {/* VS */}
-                        <div className="font-black text-2xl text-text-muted/30 italic mx-3">VS</div>
-
-                        {/* Opponent */}
-                        {opponent ? (
-                            <div className="flex-1 text-center">
-                                <div className="w-16 h-16 mx-auto rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center mb-2.5 shadow-[0_0_18px_rgba(239,68,68,0.2)]">
-                                    <span className="text-red-400 font-black text-xl">{clanInitials(opponent.clanName)}</span>
-                                </div>
-                                <p className="font-black text-white text-sm leading-tight">{opponent.clanName}</p>
-                                <p className="text-red-400 font-black text-sm mt-0.5">{opponentPoints.toLocaleString()} pts</p>
-                            </div>
-                        ) : (
-                            <div className="flex-1 text-center">
-                                <div className="w-16 h-16 mx-auto rounded-2xl glass-card flex items-center justify-center mb-2.5">
-                                    <Users size={22} className="text-text-muted" />
-                                </div>
-                                <p className="font-black text-text-muted text-sm">Adversaire</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Progress bar */}
-                    {totalPoints > 0 && (
-                        <div className="relative h-3 rounded-full overflow-hidden glass-card">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${myPct}%` }}
-                                transition={{ duration: 0.8, ease: 'easeOut' }}
-                                className="absolute left-0 top-0 h-full bg-primary rounded-full"
-                                style={{ boxShadow: '0 0 10px rgba(90,178,255,0.5)' }}
-                            />
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${opponentPct}%` }}
-                                transition={{ duration: 0.8, ease: 'easeOut' }}
-                                className="absolute right-0 top-0 h-full bg-red-500/80 rounded-full"
-                            />
-                        </div>
-                    )}
-                    {totalPoints > 0 && (
-                        <div className="flex justify-between mt-1.5">
-                            <span className="text-[10px] font-bold text-primary">{myPct}%</span>
-                            <span className="text-[10px] font-bold text-red-400">{opponentPct}%</span>
-                        </div>
-                    )}
-                    {totalPoints === 0 && (
-                        <div className="h-3 rounded-full glass-card" />
-                    )}
                 </motion.div>
-
-                {/* My contribution */}
-                {myClan.membership && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="grid grid-cols-2 gap-3"
-                    >
-                        <div className="glass-card rounded-[22px] p-4">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <Zap size={12} className="text-primary" />
-                                <span className="text-[10px] font-bold text-text-muted">Ma contribution</span>
-                            </div>
-                            <p className="text-xl font-black text-white">
-                                {(myClan.membership.contributionDistanceM / 1000).toFixed(1)}
-                                <span className="text-sm font-bold text-text-muted ml-1">km</span>
-                            </p>
-                        </div>
-                        <div className="glass-card rounded-[22px] p-4">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <Trophy size={12} className="text-primary" />
-                                <span className="text-[10px] font-bold text-text-muted">Séances</span>
-                            </div>
-                            <p className="text-xl font-black text-white">
-                                {myClan.membership.contributionActivities}
-                                <span className="text-sm font-bold text-text-muted ml-1">runs</span>
-                            </p>
-                        </div>
-                    </motion.div>
                 )}
-
-                {/* Battles */}
-                {battles.length > 0 && (
-                    <div>
-                        <h3 className="text-sm font-bold text-text-muted mb-3">Épreuves</h3>
-                        <div className="space-y-2.5">
-                            <AnimatePresence>
-                                {battles.map((battle, i) => {
-                                    const participated = participatedIds.has(battle.id);
-                                    const isActive = ['active', 'open'].includes(battle.status);
-                                    const isCompleted = ['completed', 'finalized', 'closed'].includes(battle.status);
-
-                                    return (
-                                        <motion.div
-                                            key={battle.id}
-                                            initial={{ opacity: 0, y: 8 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: i * 0.04 }}
-                                            className={`rf-activity-row group ${battleId === battle.id ? 'ring-1 ring-primary/40' : ''}`}
-                                        >
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
-                                                participated ? 'glass-hero' :
-                                                isActive ? 'bg-red-500/15 border border-red-500/20' : 'glass-card'
-                                            }`}>
-                                                {participated
-                                                    ? <CheckCircle size={18} className="text-primary" />
-                                                    : isActive
-                                                        ? <Swords size={18} className="text-red-400" />
-                                                        : <Circle size={18} className="text-text-muted/50" />
-                                                }
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-black text-sm text-white truncate">
-                                                    {BATTLE_TYPE_LABELS[battle.battleType] ?? battle.battleType}
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className={`text-[10px] font-bold ${
-                                                        isActive ? 'text-red-400' :
-                                                        isCompleted ? 'text-text-muted/50' : 'text-text-muted'
-                                                    }`}>
-                                                        {BATTLE_STATUS_LABELS[battle.status] ?? battle.status}
-                                                    </span>
-                                                    {participated && (
-                                                        <span className="text-[10px] font-bold text-primary">· Participé ✓</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {isActive && !participated && (
-                                                <span className="text-[10px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-full flex-shrink-0">
-                                                    LIVE
-                                                </span>
-                                            )}
-                                        </motion.div>
-                                    );
-                                })}
-                            </AnimatePresence>
-                        </div>
-                    </div>
-                )}
-
-                {battles.length === 0 && war && (
-                    <div className="glass-card rounded-[24px] p-6 text-center">
-                        <p className="text-text-muted text-sm">Les épreuves seront disponibles au début de la guerre.</p>
-                    </div>
-                )}
+                </AnimatePresence>
 
             </div>
+        </div>
+    );
+}
+
+// ─── WarStatusBadge ────────────────────────────────────────────────────────────
+
+function WarStatusBadge({ status }: { status: string }) {
+    const cfg = WAR_STATUS_CONFIG[status] ?? WAR_STATUS_CONFIG.scheduled;
+    return (
+        <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+            style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
+        >
+            <div
+                className={`w-1.5 h-1.5 rounded-full ${cfg.pulse ? 'animate-pulse' : ''}`}
+                style={{ background: cfg.dot }}
+            />
+            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: cfg.text }}>
+                {cfg.label}
+            </span>
+        </div>
+    );
+}
+
+const WAR_STATUS_CONFIG: Record<string, {
+    label: string; bg: string; border: string; dot: string; text: string; pulse: boolean;
+}> = {
+    scheduled:    { label: 'Planifiée',    bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.10)', dot: 'rgba(255,255,255,0.40)', text: 'rgba(255,255,255,0.55)', pulse: false },
+    matchmaking:  { label: 'Matchmaking',  bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.25)',  dot: '#f59e0b',                text: '#f59e0b',                pulse: true  },
+    roster_lock:  { label: 'Roster lock',  bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.22)',  dot: '#f59e0b',                text: '#f59e0b',                pulse: false },
+    active:       { label: 'En cours',     bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.25)',   dot: '#f87171',                text: '#f87171',                pulse: true  },
+    finalized:    { label: 'Terminée',     bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.25)',  dot: '#10b981',                text: '#10b981',                pulse: false },
+    completed:    { label: 'Archivée',     bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.10)', dot: 'rgba(255,255,255,0.30)', text: 'rgba(255,255,255,0.45)', pulse: false },
+};
+
+// ─── WarTabSwitcher ────────────────────────────────────────────────────────────
+
+function WarTabSwitcher({
+    tab,
+    onChange,
+}: {
+    tab: 'war' | 'season' | 'rivalries';
+    onChange: (t: 'war' | 'season' | 'rivalries') => void;
+}) {
+    const tabs = [
+        { key: 'war' as const, label: 'Guerre', icon: <Swords size={11} /> },
+        { key: 'season' as const, label: 'Saison', icon: <CalendarDays size={11} /> },
+        { key: 'rivalries' as const, label: 'Rivalités', icon: <Flame size={11} /> },
+    ];
+    return (
+        <div className="flex gap-1.5 p-1 glass-card rounded-[16px]">
+            {tabs.map(({ key, label, icon }) => (
+                <button
+                    key={key}
+                    onClick={() => onChange(key)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[11px] text-[10px] font-black uppercase tracking-widest transition-all"
+                    style={{
+                        background: tab === key ? (key === 'rivalries' ? 'rgba(168,85,247,0.18)' : 'rgba(90,178,255,0.18)') : 'transparent',
+                        color: tab === key ? (key === 'rivalries' ? '#a855f7' : '#5ab2ff') : 'rgba(255,255,255,0.35)',
+                        border: tab === key ? (key === 'rivalries' ? '1px solid rgba(168,85,247,0.28)' : '1px solid rgba(90,178,255,0.28)') : '1px solid transparent',
+                    }}
+                >
+                    {icon}{label}
+                </button>
+            ))}
         </div>
     );
 }

@@ -19,6 +19,7 @@ import { StravaCallback } from './pages/StravaCallback';
 import { LiveWorkout } from './pages/LiveWorkout';
 import { TrainingZones } from './pages/TrainingZones';
 import { Equipment } from './pages/Equipment';
+import { Admin } from './pages/Admin';
 
 function App() {
   return (
@@ -34,6 +35,9 @@ function App() {
 
           {/* Protected Routes */}
           <Route element={<ProtectedLayout />}>
+            {/* Admin — no bottom nav */}
+            <Route path="/admin" element={<Admin />} />
+
             <Route element={<Layout />}>
               <Route path="/" element={<Training />} />
               <Route path="/activities" element={<Activities />} />

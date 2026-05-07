@@ -16,9 +16,15 @@ export type QueryTag =
     | `clan-members:${string}`
     | `clan-messages:${string}`
     | `war:${string}`
+    | `war-battles:${string}`
+    | `war-bonus-stats:${string}`
     | `war-highlights:${string}`
+    | `war-plan:${string}`
     | `war-scoreboard:${string}`
-    | `war-timeline:${string}`;
+    | `war-aggregates:${string}`
+    | `war-tickets:${string}`
+    | `war-timeline:${string}`
+    | `notification-preferences`;
 
 interface InvalidationEvent {
     tags: QueryTag[];

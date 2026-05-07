@@ -49,6 +49,13 @@ export const formatDistance = (meters: number): string => {
     return (meters / 1000).toFixed(2);
 };
 
+export const formatPaceSec = (secPerKm: number | null): string => {
+    if (!secPerKm) return '—';
+    const m = Math.floor(secPerKm / 60);
+    const s = Math.round(secPerKm % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
 export const calculatePace = (meters: number, seconds: number): string => {
     if (meters === 0) return '0:00';
     const minutesPerKm = (seconds / 60) / (meters / 1000);

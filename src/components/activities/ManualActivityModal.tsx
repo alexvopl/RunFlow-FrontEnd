@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X, Loader2, Activity as ActivityIcon, MapPin, Clock, AlertCircle } from 'lucide-react';
+import { X, Loader2, Activity as ActivityIcon, MapPin, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
+import { ActivityWarPanel } from './ActivityWarPanel';
 
 interface ManualActivityModalProps {
     isOpen: boolean;
@@ -20,6 +21,7 @@ const ACTIVITY_TYPES = [
 export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: ManualActivityModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [savedActivityId, setSavedActivityId] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         name: '',
         activityType: 'run',
@@ -32,6 +34,19 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
     const update = (key: keyof typeof formData, value: string) =>
         setFormData(p => ({ ...p, [key]: value }));
 
+    const handleClose = () => {
+        onClose();
+        setSavedActivityId(null);
+        setFormData({
+            name: '',
+            activityType: 'run',
+            startedAt: new Date().toISOString().slice(0, 16),
+            distanceKm: '',
+            durationMin: '',
+            durationSec: '',
+        });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -41,7 +56,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
             const durationSeconds =
                 (parseInt(formData.durationMin || '0') * 60) + parseInt(formData.durationSec || '0');
 
-            await api.post('/activities', {
+            const res = await api.post<{ id: string; activity?: { id: string } }>('/activities', {
                 name: formData.name,
                 activityType: formData.activityType,
                 startedAt: new Date(formData.startedAt).toISOString(),
@@ -49,15 +64,12 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                 durationSeconds,
             });
             onActivityAdded();
-            onClose();
-            setFormData({
-                name: '',
-                activityType: 'run',
-                startedAt: new Date().toISOString().slice(0, 16),
-                distanceKm: '',
-                durationMin: '',
-                durationSec: '',
-            });
+            const activityId = res.data?.id ?? res.data?.activity?.id;
+            if (activityId) {
+                setSavedActivityId(activityId);
+            } else {
+                handleClose();
+            }
         } catch (err: any) {
             setError(err.response?.data?.message || 'Échec de l\'enregistrement. Réessaie.');
         } finally {
@@ -75,7 +87,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                     className="fixed inset-0 z-[60] flex items-end justify-center"
                 >
                     {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
 
                     {/* Sheet */}
                     <motion.div
@@ -89,6 +101,47 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                         {/* Handle */}
                         <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
 
+                        <AnimatePresence mode="wait">
+
+                        {/* ── Step 2: War panel after save ─────────────────── */}
+                        {savedActivityId ? (
+                            <motion.div
+                                key="war-step"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="space-y-4"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+                                        <div>
+                                            <h2 className="text-lg font-black tracking-tight">Enregistrée !</h2>
+                                            <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold mt-0.5">Activité manuelle</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleClose}
+                                        className="w-9 h-9 glass-card rounded-2xl flex items-center justify-center text-text-muted hover:text-white transition-colors"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <ActivityWarPanel activityId={savedActivityId} onDismiss={handleClose} />
+
+                                <button
+                                    onClick={handleClose}
+                                    className="w-full py-3 rounded-[14px] text-[11px] font-black text-white/40 transition-all active:scale-[0.97]"
+                                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                >
+                                    Fermer
+                                </button>
+                            </motion.div>
+                        ) : (
+
+                        /* ── Step 1: Form ────────────────────────────────── */
+                        <motion.div key="form-step" initial={{ opacity: 1 }} exit={{ opacity: 0, x: -20 }}>
                         {/* Header */}
                         <div className="flex items-center justify-between mb-5">
                             <div>
@@ -96,7 +149,7 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                 <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold mt-0.5">Activité manuelle</p>
                             </div>
                             <button
-                                onClick={onClose}
+                                onClick={handleClose}
                                 className="w-9 h-9 glass-card rounded-2xl flex items-center justify-center text-text-muted hover:text-white transition-colors"
                             >
                                 <X size={18} />
@@ -224,6 +277,9 @@ export function ManualActivityModal({ isOpen, onClose, onActivityAdded }: Manual
                                 {loading ? <Loader2 className="animate-spin" size={18} /> : 'Enregistrer l\'activité'}
                             </button>
                         </form>
+                        </motion.div>
+                        )}
+                        </AnimatePresence>
                     </motion.div>
                 </motion.div>
             )}

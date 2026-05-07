@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Link, Copy, Check, Loader2, RefreshCw, AlertTriangle, Clock, Users } from 'lucide-react';
+import { X, Link, Copy, Check, Loader2, RefreshCw, AlertTriangle, Clock, Users, UserPlus } from 'lucide-react';
 import { api } from '../../services/api';
 import { resolveError } from '../../services/errors';
 
@@ -55,6 +55,7 @@ function fmtExpiry(iso: string): string {
 export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
     const [maxUses, setMaxUses] = useState(5);
     const [expiresInDays, setExpiresInDays] = useState(7);
+    const [invitedUserId, setInvitedUserId] = useState('');
     const [loading, setLoading] = useState(false);
     const [invite, setInvite] = useState<RawInvite | null>(null);
     const [error, setError] = useState('');
@@ -65,13 +66,16 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
         setError('');
         setMaxUses(5);
         setExpiresInDays(7);
+        setInvitedUserId('');
     };
 
     const handleCreate = async () => {
         setLoading(true);
         setError('');
         try {
-            const res = await api.post(`/clans/${clanId}/invites`, { maxUses, expiresInDays });
+            const body: Record<string, unknown> = { maxUses, expiresInDays };
+            if (invitedUserId.trim()) body.invitedUserId = invitedUserId.trim();
+            const res = await api.post(`/clans/${clanId}/invites`, body);
             setInvite(res.data.invite as RawInvite);
         } catch (e) {
             setError(resolveError(e, 'Erreur lors de la création du lien.'));
@@ -201,6 +205,30 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                                     </button>
                                                 ))}
                                             </div>
+                                        </div>
+
+                                        {/* Optional targeted user */}
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-white/35 flex items-center gap-1.5 mb-2">
+                                                <UserPlus size={9} />Invitation ciblée
+                                                <span className="text-white/20 normal-case tracking-normal font-bold">(optionnel)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={invitedUserId}
+                                                onChange={e => setInvitedUserId(e.target.value)}
+                                                placeholder="User ID du destinataire"
+                                                className="w-full px-3.5 py-2.5 rounded-[12px] text-[11px] text-white placeholder:text-white/25 font-mono focus:outline-none transition-all"
+                                                style={{
+                                                    background: 'rgba(255,255,255,0.04)',
+                                                    border: invitedUserId
+                                                        ? '1px solid rgba(90,178,255,0.35)'
+                                                        : '1px solid rgba(255,255,255,0.08)',
+                                                }}
+                                            />
+                                            <p className="text-[8px] text-white/20 mt-1.5 leading-relaxed">
+                                                Si renseigné, seul cet utilisateur pourra utiliser ce code.
+                                            </p>
                                         </div>
 
                                         {error && (

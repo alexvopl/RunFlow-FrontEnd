@@ -217,18 +217,31 @@ function mutationInvalidationTags(method?: string, rawUrl?: string): QueryTag[] 
     match = path.match(/^\/clans\/([^/]+)\/invites$/);
     if (match && verb === 'POST') add(`clan:${match[1]}`);
 
-    match = path.match(/^\/game\/wars\/([^/]+)/);
+    match = path.match(/^\/game\/wars\/([^/]+)(?:\/|$)/);
     if (match) {
-        add('wars', `war:${match[1]}`);
-        if (path.includes('/scoreboard') || path.includes('/credit') || path.includes('/vote')) {
-            add(`war-scoreboard:${match[1]}`);
+        const warId = match[1];
+        add('wars', `war:${warId}`);
+
+        if (path.includes('/battles') || path.includes('/roster/lock')) add(`war-battles:${warId}`);
+        if (path.includes('/scoreboard') || path.includes('/vote') || path.includes('/plan/lock')) {
+            add(`war-scoreboard:${warId}`);
         }
-        if (path.includes('/highlights')) add(`war-highlights:${match[1]}`);
-        if (path.includes('/timeline')) add(`war-timeline:${match[1]}`);
+        if (path.includes('/highlights')) add(`war-highlights:${warId}`);
+        if (path.includes('/timeline') || path.includes('/roster/lock') || path.includes('/plan/lock')) {
+            add(`war-timeline:${warId}`);
+        }
+        if (path.includes('/plan')) add(`war-plan:${warId}`);
+        if (path.includes('/plan/lock')) add(`war-bonus-stats:${warId}`);
+        if (path.includes('/my-tickets')) add(`war-tickets:${warId}`);
     }
 
-    match = path.match(/^\/game\/battles\/([^/]+)/);
-    if (match) add('wars', `battle:${match[1]}`);
+    match = path.match(/^\/game\/battles\/([^/]+)(?:\/|$)/);
+    if (match) {
+        add('wars', `battle:${match[1]}`);
+        if (path.includes('/submit') || path.includes('/refresh')) add('activities');
+    }
+
+    if (path.startsWith('/game/activities')) add('activities', 'challenges', 'wars');
 
     if (path.includes('/vote')) add('wars');
     if (path.includes('/credit')) add('wars', 'activities', 'challenges');

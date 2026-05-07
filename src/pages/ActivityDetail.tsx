@@ -8,6 +8,7 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ActivityWarPanel, WarReversalBadge } from '../components/activities/ActivityWarPanel';
 
 // ── Mini route map (route-only, no GPS tracking) ──────────────���───────
 function RouteMap({ route }: { route: Array<{ lat: number; lng: number }> }) {
@@ -70,6 +71,7 @@ export function ActivityDetail() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [reversalsApplied, setReversalsApplied] = useState(0);
 
     useEffect(() => {
         api.get(`/activities/${id}`)
@@ -82,6 +84,13 @@ export function ActivityDetail() {
         setDeleting(true);
         setDeleteError(null);
         try {
+            // Game soft-delete first to reverse any war scores
+            try {
+                const gameRes = await api.delete(`/game/activities/${id}`);
+                setReversalsApplied(gameRes.data?.reversalsApplied ?? 0);
+            } catch {
+                // Non-critical — activity may not be in a war
+            }
             await api.delete(`/activities/${id}`);
             navigate('/activities');
         } catch {
@@ -127,9 +136,14 @@ export function ActivityDetail() {
                                 <Trash2 size={24} className="text-red-400" />
                             </div>
                             <h3 className="text-lg font-black text-center mb-2">Supprimer l'activité ?</h3>
-                            <p className="text-text-muted text-sm text-center leading-relaxed mb-6">
+                            <p className="text-text-muted text-sm text-center leading-relaxed mb-4">
                                 Cette action est irréversible. L'activité sera définitivement supprimée.
                             </p>
+                            {reversalsApplied > 0 && (
+                                <div className="mb-4">
+                                    <WarReversalBadge reversalsApplied={reversalsApplied} />
+                                </div>
+                            )}
                             {deleteError && (
                                 <p className="text-red-400 text-xs text-center font-semibold mb-4">{deleteError}</p>
                             )}
@@ -208,6 +222,9 @@ export function ActivityDetail() {
                         <div className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-0.5">FC moy.</div>
                     </div>
                 </motion.div>
+
+                {/* ── War panel ───────────────────────────────────── */}
+                <ActivityWarPanel activityId={id!} />
 
                 {/* ── Route map ───────────────────────────────────── */}
                 {hasRoute && (
