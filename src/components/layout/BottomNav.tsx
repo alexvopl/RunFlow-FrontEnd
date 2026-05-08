@@ -34,8 +34,8 @@ export function BottomNav() {
                                         layoutId="nav-pill"
                                         className="absolute inset-x-1 top-1.5 bottom-1.5 rounded-[20px] -z-10"
                                         style={{
-                                            background: 'linear-gradient(180deg, rgba(90,178,255,0.2), rgba(59,130,246,0.12))',
-                                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55), 0 8px 18px rgba(59,130,246,0.14)',
+                                            background: 'linear-gradient(180deg, rgba(90,178,255,0.18), rgba(59,130,246,0.09))',
+                                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 20px rgba(90,178,255,0.18)',
                                         }}
                                         initial={false}
                                         transition={{ type: 'spring', stiffness: 380, damping: 30 }}
@@ -43,7 +43,7 @@ export function BottomNav() {
                                 )}
                                 <div className={clsx(
                                     'relative transition-all duration-200',
-                                    isActive ? 'text-primary' : 'text-slate-600'
+                                    isActive ? 'text-primary' : 'text-slate-400'
                                 )}>
                                     <item.icon
                                         size={22}
@@ -68,7 +68,7 @@ export function BottomNav() {
                                 </div>
                                 <span className={clsx(
                                     'text-[9px] font-bold mt-1.5 tracking-wider uppercase transition-all duration-200',
-                                    isActive ? 'text-primary opacity-100' : 'text-slate-600 opacity-80'
+                                    isActive ? 'text-primary opacity-100' : 'text-slate-400 opacity-70'
                                 )}>
                                     {item.label}
                                 </span>

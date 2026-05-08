@@ -89,7 +89,7 @@ export function Activities() {
                 {/* Header */}
                 <header className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-[1.7rem] font-black tracking-tight leading-tight text-white">Activités</h1>
+                        <h1 className="text-[1.7rem] font-display font-bold tracking-tight leading-tight text-white">Activités</h1>
                         <p className="text-text-muted text-sm mt-0.5">Ton journal de course</p>
                     </div>
                     <div className="flex gap-2">
@@ -111,9 +111,9 @@ export function Activities() {
                             <MapPin size={12} className="text-primary" />
                             <span className="text-[10px] font-bold text-text-muted">Cette semaine</span>
                         </div>
-                        <div className="text-2xl font-black text-white">
+                        <div className="text-2xl font-mono font-bold text-white">
                             {(stats.weeklyKm || 0).toFixed(1)}
-                            <span className="text-sm font-bold text-text-muted ml-1">km</span>
+                            <span className="text-sm font-sans font-medium text-text-muted ml-1">km</span>
                         </div>
                     </div>
                     <div className="glass-card rounded-[22px] p-4">
@@ -121,9 +121,9 @@ export function Activities() {
                             <Flame size={12} className="text-primary" />
                             <span className="text-[10px] font-bold text-text-muted">Total</span>
                         </div>
-                        <div className="text-2xl font-black text-white">
+                        <div className="text-2xl font-mono font-bold text-white">
                             {stats.count || 0}
-                            <span className="text-sm font-bold text-text-muted ml-1">séances</span>
+                            <span className="text-sm font-sans font-medium text-text-muted ml-1">séances</span>
                         </div>
                     </div>
                 </div>

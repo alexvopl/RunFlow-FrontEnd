@@ -328,7 +328,7 @@ export function Training() {
                 {/* ── Header ─────────────────────────────────────────── */}
                 <header className="flex items-start justify-between">
                     <div>
-                        <h1 className="text-[1.75rem] font-black tracking-tight leading-none text-white">Entraînement</h1>
+                        <h1 className="text-[1.75rem] font-display font-bold tracking-tight leading-none text-white">Entraînement</h1>
                         <p className="text-text-muted text-sm mt-1">
                             Semaine {currentWeek} · {weeksLeft > 0 ? `${weeksLeft} sem. restantes` : 'Dernière ligne droite'}
                         </p>

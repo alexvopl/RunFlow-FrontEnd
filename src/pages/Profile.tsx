@@ -115,7 +115,7 @@ export function Profile() {
 
                 {/* Header */}
                 <div className="flex justify-between items-center">
-                    <h1 className="text-[1.7rem] font-black tracking-tight text-white">Profil</h1>
+                    <h1 className="text-[1.7rem] font-display font-bold tracking-tight text-white">Profil</h1>
                     <div className="flex gap-2">
                         <Link to="/notifications"
                             className="relative w-10 h-10 glass-card rounded-2xl flex items-center justify-center text-text-muted hover:text-white transition-colors">
@@ -160,7 +160,7 @@ export function Profile() {
                         ].map((stat, i, arr) => (
                             <div key={stat.label} className="flex items-center gap-8">
                                 <button onClick={stat.onClick} className="flex flex-col items-center gap-0.5 group">
-                                    <span className={`text-xl font-black group-hover:scale-110 transition-transform ${stat.amber ? 'text-amber-400' : ''}`}>
+                                    <span className={`text-xl font-mono font-bold group-hover:scale-110 transition-transform ${stat.amber ? 'text-amber-400' : ''}`}>
                                         {stat.value}
                                     </span>
                                     <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">{stat.label}</span>
