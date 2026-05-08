@@ -7,6 +7,7 @@ import { usePolling } from './usePolling';
 
 export interface Season {
     id: string;
+    number?: number | null;
     scope: 'global' | 'city';
     city: string | null;
     startsAt: string;

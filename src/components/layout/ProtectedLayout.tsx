@@ -1,11 +1,22 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { usePushToken } from '../../hooks/usePushToken';
 
 export function ProtectedLayout() {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading, logout } = useAuth();
+    const navigate = useNavigate();
     usePushToken();
+
+    useEffect(() => {
+        const handler = () => {
+            logout();
+            navigate('/login?reason=session-expired', { replace: true });
+        };
+        window.addEventListener('runflow:session-expired', handler);
+        return () => window.removeEventListener('runflow:session-expired', handler);
+    }, [logout, navigate]);
 
     if (isLoading) {
         return (

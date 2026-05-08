@@ -285,6 +285,9 @@ api.interceptors.response.use(
                 return api(originalRequest);
             }
 
+            if (isBrowser) {
+                window.dispatchEvent(new CustomEvent('runflow:session-expired'));
+            }
             return Promise.reject(error);
         }
 

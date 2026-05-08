@@ -18,13 +18,6 @@ function fmtDate(iso: string): string {
     return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
-function seasonNumber(season: { startsAt: string }): number {
-    const d = new Date(season.startsAt);
-    const start = new Date('2025-01-01').getTime();
-    const ms = d.getTime() - start;
-    return Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24 * 90)));
-}
-
 // ─── SeasonView ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -74,7 +67,7 @@ export function SeasonView({ clanId, clanName, myUserId }: Props) {
     const ratingDelta = rating && myClanDivision
         ? rating.rating - myClanDivision.ratingAtStart
         : null;
-    const sNum = seasonNumber(season);
+    const sNum = season.number ?? 1;
 
     return (
         <div className="space-y-4">

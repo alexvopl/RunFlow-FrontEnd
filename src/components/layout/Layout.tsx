@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BottomNav } from './BottomNav';
+import { OfflineBanner } from './OfflineBanner';
 
 export function Layout() {
     const location = useLocation();
@@ -8,6 +9,7 @@ export function Layout() {
 
     return (
         <div className="app-shell min-h-screen bg-background text-text font-sans antialiased overflow-x-hidden selection:bg-primary/20">
+            <OfflineBanner />
             <AnimatePresence mode="wait">
                 <motion.main
                     key={location.pathname}

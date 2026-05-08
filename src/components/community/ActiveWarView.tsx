@@ -314,6 +314,8 @@ export function ActiveWarView({
     );
     const [votingBattleId, setVotingBattleId] = useState<string | null>(null);
     const [locking, setLocking] = useState(false);
+    const [lockingRoster, setLockingRoster] = useState(false);
+    const [rosterLocked, setRosterLocked] = useState(false);
     const [, setDeadlineTick] = useState(0);
     const [selectedBattle, setSelectedBattle] = useState<WarBattle | null>(null);
 
@@ -386,6 +388,19 @@ export function ActiveWarView({
             setLocking(false);
         }
     }, [warId]);
+
+    const handleRosterLock = useCallback(async () => {
+        setLockingRoster(true);
+        try {
+            await api.post(`/game/wars/${warId}/roster/lock`);
+            setRosterLocked(true);
+            onRefresh();
+        } catch {
+            // error visible via badge
+        } finally {
+            setLockingRoster(false);
+        }
+    }, [warId, onRefresh]);
 
     const isFinalized = ['finalized', 'completed'].includes(war.status);
     const isRosterLock = war.status === 'roster_lock';
@@ -536,6 +551,17 @@ export function ActiveWarView({
                         <Lock size={10} />
                         Roster verrouillé
                     </span>
+                )}
+                {isRosterLock && isLeader && !rosterLocked && (
+                    <button
+                        onClick={handleRosterLock}
+                        disabled={lockingRoster}
+                        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-[0.96] disabled:opacity-50"
+                        style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.30)', color: '#f59e0b' }}
+                    >
+                        {lockingRoster ? <Loader2 size={10} className="animate-spin" /> : <Lock size={10} />}
+                        Verrouiller le roster
+                    </button>
                 )}
                 {timeline?.endsIn && (
                     <span className="text-[10px] font-mono font-black text-white/40 flex items-center gap-1 ml-auto">

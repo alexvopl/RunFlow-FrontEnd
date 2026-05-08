@@ -30,6 +30,11 @@ interface NotifPreferences {
     challenges?: boolean;
     leaderboards?: boolean;
     training?: boolean;
+    warUpdates?: boolean;
+    warLeadChanges?: boolean;
+    warCloseMatches?: boolean;
+    battleReminders?: boolean;
+    mvpNotifications?: boolean;
 }
 
 // ─── Type config ───────────────────────────────────────────────────────────────
@@ -141,12 +146,17 @@ const PAGE_SIZE = 20;
 
 // ─── Preferences ───────────────────────────────────────────────────────────────
 
-const PREF_ROWS: Array<{ key: keyof NotifPreferences; label: string; description: string }> = [
-    { key: 'wars',         label: 'Guerres & Battles',  description: 'Démarrages, résultats, deadlines de vote' },
-    { key: 'clans',        label: 'Clan & Communauté',  description: 'Invitations, messages, changements de rôle' },
-    { key: 'challenges',   label: 'Défis',               description: 'Nouveaux défis et résultats' },
-    { key: 'leaderboards', label: 'Classements',          description: 'Changements de rang et records' },
-    { key: 'training',     label: 'Entraînement',         description: 'Rappels et recommandations de séances' },
+const PREF_ROWS: Array<{ key: keyof NotifPreferences; label: string; description: string; sub?: true }> = [
+    { key: 'wars',            label: 'Guerres & Battles',       description: 'Démarrages, résultats, deadlines de vote' },
+    { key: 'warUpdates',      label: 'Mises à jour de guerre',  description: 'Score live, highlights, fin de guerre', sub: true },
+    { key: 'warLeadChanges',  label: 'Changements de tête',     description: 'Quand un clan prend ou perd la tête', sub: true },
+    { key: 'warCloseMatches', label: 'Matchs serrés',           description: 'Alertes écart < 10% en fin de guerre', sub: true },
+    { key: 'battleReminders', label: 'Rappels battle',          description: 'Ouverture et fermeture imminente', sub: true },
+    { key: 'mvpNotifications',label: 'MVP du jour',             description: 'Quand tu décroches ou manques le MVP', sub: true },
+    { key: 'clans',           label: 'Clan & Communauté',       description: 'Invitations, messages, changements de rôle' },
+    { key: 'challenges',      label: 'Défis',                   description: 'Nouveaux défis et résultats' },
+    { key: 'leaderboards',    label: 'Classements',             description: 'Changements de rang et records' },
+    { key: 'training',        label: 'Entraînement',            description: 'Rappels et recommandations de séances' },
 ];
 
 // ─── PushStatusRow ─────────────────────────────────────────────────────────────
@@ -297,13 +307,13 @@ function PreferencesSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
                                     <div key={i} className="skeleton h-16 rounded-[18px]" />
                                 ))
                             ) : (
-                                PREF_ROWS.map(({ key, label, description }) => {
+                                PREF_ROWS.map(({ key, label, description, sub }) => {
                                     const enabled = prefs ? (prefs[key] ?? true) : true;
                                     return (
                                         <button
                                             key={key}
                                             onClick={() => toggle(key)}
-                                            className="w-full flex items-center gap-4 glass-card rounded-[18px] px-4 py-3.5 text-left active:scale-[0.98] transition-transform"
+                                            className={`w-full flex items-center gap-4 glass-card rounded-[18px] px-4 py-3.5 text-left active:scale-[0.98] transition-transform ${sub ? 'ml-4 opacity-90' : ''}`}
                                         >
                                             <div className="flex-1 min-w-0">
                                                 <p className={`text-sm font-black ${enabled ? 'text-white' : 'text-white/35'}`}>

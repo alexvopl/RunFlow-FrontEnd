@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, Loader2, AlertCircle, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function Login() {
     const [email, setEmail] = useState('');
@@ -12,6 +12,8 @@ export function Login() {
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const sessionExpired = searchParams.get('reason') === 'session-expired';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,16 +53,32 @@ export function Login() {
                 {/* Card */}
                 <div className="glass-hero rounded-[28px] p-6 space-y-5">
 
-                    {error && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-2xl flex items-center gap-2.5 text-sm"
-                        >
-                            <AlertCircle size={15} className="flex-shrink-0" />
-                            {error}
-                        </motion.div>
-                    )}
+                    <AnimatePresence>
+                        {sessionExpired && (
+                            <motion.div
+                                key="session-expired"
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-3 rounded-2xl flex items-center gap-2.5 text-sm"
+                            >
+                                <Clock size={15} className="flex-shrink-0" />
+                                Session expirée — reconnecte-toi pour continuer.
+                            </motion.div>
+                        )}
+                        {error && (
+                            <motion.div
+                                key="error"
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-2xl flex items-center gap-2.5 text-sm"
+                            >
+                                <AlertCircle size={15} className="flex-shrink-0" />
+                                {error}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <form onSubmit={handleSubmit} className="space-y-3.5">
                         {/* Email */}
