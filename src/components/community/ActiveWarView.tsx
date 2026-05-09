@@ -328,7 +328,14 @@ export function ActiveWarView({
             api.get<WarPlan>(`/game/wars/${warId}/plan`).catch(() => null),
             api.get(`/game/wars/${warId}/bonus-stats`).catch(() => null),
         ]).then(([planRes, bonusRes]) => {
-            if (planRes) setPlan(planRes.data);
+            if (planRes) {
+                const d = planRes.data;
+                // API may return priorities as objects {rank, battleId, battleType} instead of strings
+                const priorities = d.priorities?.map((p: string | Record<string, unknown>) =>
+                    typeof p === 'string' ? p : String((p as Record<string, unknown>).battleId ?? '')
+                ).filter(Boolean) ?? null;
+                setPlan({ ...d, priorities });
+            }
             if (bonusRes?.data) {
                 const d = bonusRes.data;
                 setBonusStats({
