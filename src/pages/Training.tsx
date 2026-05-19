@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { api } from '../services/api';
 import { PlanGeneratorWizard } from '../components/training/PlanGeneratorWizard';
 import { FeedbackModal } from '../components/training/FeedbackModal';
+import { WarStatusBanner } from '../components/community/WarStatusBanner';
 import { ZONE_CONFIG, WORKOUT_LABELS, WORKOUT_SHORT, zoneColor, type ZoneKey } from '../constants/zones';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -189,7 +190,9 @@ export function Training() {
 
     if (!activePlan && !showWizard) {
         return (
-            <div className="min-h-screen px-5 pb-28 flex flex-col items-center justify-center text-center gap-6">
+            <div className="min-h-screen pb-28 flex flex-col">
+            <WarStatusBanner />
+            <div className="flex-1 px-5 flex flex-col items-center justify-center text-center gap-6">
                 <motion.div
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -216,6 +219,7 @@ export function Training() {
                         Lancer une course libre
                     </button>
                 </div>
+            </div>
             </div>
         );
     }
@@ -322,6 +326,8 @@ export function Training() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <WarStatusBanner />
 
             <div className="px-5 space-y-5 pt-7">
 

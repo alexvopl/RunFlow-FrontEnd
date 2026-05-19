@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:frontend": "node scripts/dev-frontend.mjs",
+    "dev:frontend:check": "node scripts/dev-frontend.mjs --dry-run",
     "dev:stack": "node scripts/dev-stack.mjs",
     "dev:stack:check": "node scripts/dev-stack.mjs --dry-run",
     "build": "tsc -b && vite build",
