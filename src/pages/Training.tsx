@@ -191,8 +191,8 @@ export function Training() {
     if (!activePlan && !showWizard) {
         return (
             <div className="min-h-screen pb-28 flex flex-col">
-            <WarStatusBanner />
-            <div className="flex-1 px-5 flex flex-col items-center justify-center text-center gap-6">
+                <WarStatusBanner />
+                <div className="flex-1 px-5 flex flex-col items-center justify-center text-center gap-6">
                 <motion.div
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
