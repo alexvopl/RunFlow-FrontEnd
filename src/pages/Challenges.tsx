@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Target, Star, Timer, Trophy, BarChart3, ChevronLeft, RotateCw, ChevronRight, Medal } from 'lucide-react';
+import { Loader2, Target, Star, Timer, Trophy, BarChart3, ChevronLeft, RotateCw, ChevronRight, Medal, Swords, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { useWarData } from '../hooks/useWarData';
 import { clsx } from 'clsx';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -24,6 +25,69 @@ const TIMEFRAMES = [
     { key: 'weekly', label: 'Semaine' },
     { key: 'monthly', label: 'Mois' },
 ] as const;
+
+function formatWarTime(hours: number): string {
+    if (hours <= 0) return 'Terminée';
+    if (hours < 1) return `${Math.round(hours * 60)}m restantes`;
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return m > 0 ? `${h}h ${m}m restantes` : `${h}h restantes`;
+}
+
+function WarCard() {
+    const navigate = useNavigate();
+    const { data, loading } = useWarData(undefined, {
+        warIntervalMs: 120_000,
+        highlightsIntervalMs: 999_999_999,
+        timelineIntervalMs: 999_999_999,
+    });
+    const { war, scoreboard, hoursRemaining } = data;
+
+    if (loading || !war) return null;
+    const isActive = ['active', 'live', 'ongoing'].includes(war.status ?? '');
+    if (!isActive) return null;
+
+    const top = scoreboard.slice(0, 2);
+    const leader = top[0];
+    const runnerUp = top[1] ?? null;
+
+    return (
+        <motion.button
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={() => navigate('/wars')}
+            className="w-full text-left rounded-[20px] overflow-hidden active:scale-[0.98] transition-transform"
+            style={{
+                background: 'linear-gradient(135deg, rgba(30,8,8,0.95) 0%, rgba(20,6,18,0.95) 100%)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                boxShadow: '0 0 24px rgba(239,68,68,0.08)',
+            }}
+        >
+            <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                    <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                    </span>
+                    <div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-red-400">Guerre en cours</p>
+                        {leader && runnerUp && (
+                            <p className="text-[10px] font-bold text-white/50 mt-0.5 truncate max-w-[180px]">
+                                {leader.clanName} · {leader.totalPoints.toLocaleString()} vs {runnerUp.totalPoints.toLocaleString()} pts
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    <Clock size={10} className="text-white/35" />
+                    <span className="text-[10px] font-bold text-white/45">{formatWarTime(hoursRemaining)}</span>
+                    <Swords size={13} className="text-red-500/60 ml-1" />
+                </div>
+            </div>
+        </motion.button>
+    );
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 export function Challenges() {
@@ -203,8 +267,11 @@ export function Challenges() {
                 {/* Header */}
                 <header>
                     <h1 className="text-[1.7rem] font-black tracking-tight leading-tight text-white">Compétition</h1>
-                    <p className="text-text-muted text-sm mt-0.5">Défis et classements</p>
+                    <p className="text-text-muted text-sm mt-0.5">Défis et guerres de clans</p>
                 </header>
+
+                {/* War status card — shown when a war is active */}
+                <WarCard />
 
                 {/* Stats bar (challenges tab only) */}
                 {activeTab === 'challenges' && stats && (

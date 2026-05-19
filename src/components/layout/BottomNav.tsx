@@ -1,4 +1,4 @@
-import { Calendar, Users, User, Activity, Swords } from 'lucide-react';
+import { Calendar, Users, User, Activity, Trophy } from 'lucide-react';
 import { useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -9,7 +9,7 @@ const navItems = [
     { path: '/', icon: Calendar, label: 'Plan' },
     { path: '/activities', icon: Activity, label: 'Activités' },
     { path: '/community', icon: Users, label: 'Clan' },
-    { path: '/wars', icon: Swords, label: 'Guerres' },
+    { path: '/challenges', icon: Trophy, label: 'Compétition' },
     { path: '/profile', icon: User, label: 'Profil' },
 ];
 
@@ -29,8 +29,9 @@ export function BottomNav() {
                 <nav className="floating-nav-shell flex justify-around items-center h-[74px] px-2 rounded-[28px]">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path ||
-                            (item.path !== '/' && location.pathname.startsWith(item.path));
-                        const isWars = item.path === '/wars';
+                            (item.path !== '/' && location.pathname.startsWith(item.path)) ||
+                            (item.path === '/challenges' && location.pathname.startsWith('/wars'));
+                        const isWars = item.path === '/challenges';
                         return (
                             <Link
                                 key={item.path}
