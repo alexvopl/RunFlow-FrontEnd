@@ -9,7 +9,9 @@ export function useUnreadCount(): number {
         try {
             const res = await api.get('/notifications/unread-count');
             setCount(res.data?.count ?? res.data?.unreadCount ?? 0);
-        } catch {}
+        } catch (err) {
+            console.error('Failed to fetch unread count:', err);
+        }
     }, []);
 
     useEffect(() => { void refresh(); }, [refresh]);

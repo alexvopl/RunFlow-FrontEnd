@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { api } from '../../services/api';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────

@@ -383,8 +383,8 @@ export function Notifications() {
             setNotifications(prev => append ? [...prev, ...list] : list);
             setCursor(next);
             setHasMore(Boolean(more));
-        } catch {
-            // keep existing list on error
+        } catch (err) {
+            console.error('Failed to fetch notifications:', err);
         }
     }, []);
 
@@ -405,7 +405,9 @@ export function Notifications() {
             await api.put(`/notifications/${id}/read`);
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
             notifyInvalidation(['notifications']);
-        } catch {}
+        } catch (err) {
+            console.error('Failed to mark notification as read:', err);
+        }
     }, []);
 
     // Auto-mark deep-linked notification as read
@@ -421,7 +423,9 @@ export function Notifications() {
             await api.put('/notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             notifyInvalidation(['notifications']);
-        } catch {}
+        } catch (err) {
+            console.error('Failed to mark all notifications as read:', err);
+        }
         finally { setMarkingAll(false); }
     };
 

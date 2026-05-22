@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Trophy, Shield, Flame, Swords, ChevronRight,
-    Loader2, Clock, ExternalLink,
+    Clock, ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -522,7 +522,6 @@ function EncounterRow({
     onNavigate: (warId: string) => void;
 }) {
     const isWin = encounter.winnerClanId !== null && encounter.winnerClanId !== rivalry.rivalClanId;
-    const isLoss = encounter.winnerClanId === rivalry.rivalClanId;
     const isTie = encounter.winnerClanId === null;
 
     // Determine my score vs rival score.

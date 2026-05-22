@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Trophy, Medal, TrendingUp, Activity, Star } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, Activity, Star } from 'lucide-react';
 import { api } from '../../services/api';
 import { formatPaceSec } from '../../utils/format';
 
@@ -30,13 +30,6 @@ interface PeriodData {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function fmtKm(m: number): string {
-    const km = m / 1000;
-    if (km >= 1000) return `${(km / 1000).toFixed(1)}k`;
-    if (km >= 100) return `${Math.round(km)}`;
-    return km.toFixed(1);
-}
 
 function entryName(e: LeaderboardEntry): string {
     return e.displayName || e.username || 'Inconnu';

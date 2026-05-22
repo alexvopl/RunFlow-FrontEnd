@@ -10,10 +10,18 @@ export const adminKey = {
         try { return sessionStorage.getItem(STORAGE_KEY); } catch { return null; }
     },
     set(key: string): void {
-        try { sessionStorage.setItem(STORAGE_KEY, key.trim()); } catch {}
+        try {
+            sessionStorage.setItem(STORAGE_KEY, key.trim());
+        } catch (err) {
+            console.warn('Failed to save admin key in storage:', err);
+        }
     },
     clear(): void {
-        try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+        try {
+            sessionStorage.removeItem(STORAGE_KEY);
+        } catch (err) {
+            console.warn('Failed to remove admin key from storage:', err);
+        }
     },
 };
 

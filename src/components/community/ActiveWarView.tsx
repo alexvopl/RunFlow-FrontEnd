@@ -175,8 +175,9 @@ function BattleCard({
     };
 
     useEffect(() => {
+        const currentTimer = errorTimerRef.current;
         return () => {
-            if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+            if (currentTimer) clearTimeout(currentTimer);
         };
     }, []);
 
@@ -316,6 +317,7 @@ export function ActiveWarView({
     const [locking, setLocking] = useState(false);
     const [lockingRoster, setLockingRoster] = useState(false);
     const [rosterLocked, setRosterLocked] = useState(false);
+    const [now, setNow] = useState(() => Date.now());
     const [, setDeadlineTick] = useState(0);
     const [selectedBattle, setSelectedBattle] = useState<WarBattle | null>(null);
 
@@ -349,7 +351,10 @@ export function ActiveWarView({
 
     useEffect(() => {
         if (!plan || plan.status !== 'voting' || !plan.lockDeadlineAt) return;
-        const id = setInterval(() => setDeadlineTick(t => t + 1), 1000);
+        const id = setInterval(() => {
+            setNow(Date.now());
+            setDeadlineTick(t => t + 1);
+        }, 1000);
         return () => clearInterval(id);
     }, [plan]);
 
@@ -412,7 +417,7 @@ export function ActiveWarView({
     const isFinalized = ['finalized', 'completed'].includes(war.status);
     const isRosterLock = war.status === 'roster_lock';
     const isDeadlineExpired = Boolean(
-        plan?.status === 'voting' && plan.lockDeadlineAt && new Date(plan.lockDeadlineAt).getTime() <= Date.now()
+        plan?.status === 'voting' && plan.lockDeadlineAt && new Date(plan.lockDeadlineAt).getTime() <= now
     );
     const prioritySet = new Set(plan?.priorities ?? []);
 

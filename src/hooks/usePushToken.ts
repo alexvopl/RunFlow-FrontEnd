@@ -28,7 +28,9 @@ export async function registerPushToken(): Promise<void> {
         if (token === stored) return;
         await api.post('/notifications/push-tokens', { token, platform: 'web' });
         sessionStorage.setItem(STORAGE_KEY, token);
-    } catch {}
+    } catch (err) {
+        console.error('Failed to register push token:', err);
+    }
 }
 
 export async function unregisterPushToken(): Promise<void> {

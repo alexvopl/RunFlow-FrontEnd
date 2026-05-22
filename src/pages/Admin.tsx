@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldAlert, KeyRound, Eye, EyeOff, LogOut, Loader2,
     CheckCircle2, XCircle, ChevronDown, ChevronUp,
-    CalendarRange, Swords, Timer, Gavel, Bug, Zap, Flame,
+    CalendarRange, Swords, Timer, Gavel, Bug, Flame,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';

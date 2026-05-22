@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, Zap, TrendingUp, Activity, AlertCircle } from 'lucide-react';
+import { Zap, TrendingUp, Activity, AlertCircle } from 'lucide-react';
 import { api } from '../../services/api';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
