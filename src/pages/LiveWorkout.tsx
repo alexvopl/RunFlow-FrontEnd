@@ -7,6 +7,7 @@ import {
     ChevronUp, ChevronDown, Minus, Loader2
 } from 'lucide-react';
 import { api } from '../services/api';
+import { enqueueActivity } from '../services/offlineQueue';
 import { WorkoutMap } from '../components/workout/WorkoutMap';
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -134,7 +135,7 @@ export function LiveWorkout() {
     const [segmentStartElapsed, setSegmentStartElapsed] = useState(0);
     const [beeped, setBeeped] = useState(false);
     const [lapToast, setLapToast] = useState<string | null>(null);
-    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'skipped' | 'error'>('idle');
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'skipped' | 'offline' | 'error'>('idle');
     const [stravaState, setStravaState] = useState<'idle' | 'pushing' | 'pushed' | 'not_connected' | 'error'>('idle');
     const [stravaActivityUrl, setStravaActivityUrl] = useState<string | null>(null);
     // Increments on every GPS point — used as map distanceTrigger so the
@@ -432,8 +433,28 @@ export function LiveWorkout() {
                     }
                 }
             } catch (e) {
-                console.error('Failed to save activity', e);
-                setSaveState('error');
+                console.error('Failed to save activity — queuing for offline retry', e);
+                // Save locally so the workout isn't lost; will be retried automatically
+                // the next time the device comes back online (see useOfflineSync).
+                enqueueActivity({
+                    name:            guidedWorkout?.title || 'Course libre',
+                    activityType:    'run',
+                    startedAt:       new Date(workoutStartRef.current ?? Date.now()).toISOString(),
+                    distanceMeters:  Math.round(finalDistanceM),
+                    durationSeconds: finalElapsed,
+                    source:          'manual',
+                    route:           gpsPoints.current.length > 1
+                                         ? gpsPoints.current.map(p => ({ lat: p.lat, lng: p.lng }))
+                                         : undefined,
+                    splits:          completedLapsRef.current.length > 0
+                                         ? completedLapsRef.current.map(lap => ({
+                                               kmNumber:      lap.index,
+                                               splitTimeSec:  lap.durationSeconds,
+                                               avgPaceSecPerKm: lap.avgPaceSecPerKm,
+                                           }))
+                                         : undefined,
+                });
+                setSaveState('offline');
             }
         } else {
             setSaveState('skipped');
@@ -581,13 +602,24 @@ export function LiveWorkout() {
                 </motion.div>
 
                 <h1 className="text-3xl font-black uppercase tracking-tight mb-1">Bravo !</h1>
-                <p className="text-text-muted text-sm mb-8 font-medium flex items-center justify-center gap-2">
-                    {saveState === 'saving' && <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>}
+                <p className="text-text-muted text-sm mb-2 font-medium flex items-center justify-center gap-2">
+                    {saveState === 'saving'  && <><Loader2 size={14} className="animate-spin" /> Enregistrement…</>}
                     {saveState === 'saved'   && '✓ Activité enregistrée'}
                     {saveState === 'error'   && '⚠ Erreur — activité non enregistrée'}
                     {saveState === 'skipped' && 'Séance terminée'}
                     {saveState === 'idle'    && 'Séance terminée'}
+                    {saveState === 'offline' && '📶 Pas de réseau — séance sauvegardée localement'}
                 </p>
+
+                {/* Offline notice */}
+                {saveState === 'offline' && (
+                    <div className="w-full max-w-sm mb-6 rounded-[18px] px-4 py-3 bg-amber-500/10 border border-amber-400/25 text-left">
+                        <p className="text-[11px] font-black text-amber-400 uppercase tracking-widest mb-0.5">Synchronisation en attente</p>
+                        <p className="text-[11px] text-text-muted font-medium leading-relaxed">
+                            Ta séance est enregistrée sur cet appareil. Elle sera automatiquement envoyée dès que ta connexion sera rétablie.
+                        </p>
+                    </div>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-4 w-full max-w-sm mb-6">

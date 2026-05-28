@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { useOfflineSync } from './hooks/useOfflineSync';
 import { ProtectedLayout } from './components/layout/ProtectedLayout';
 import { Layout } from './components/layout/Layout';
 import { Login } from './pages/auth/Login';
@@ -23,10 +24,16 @@ const TrainingZones  = lazy(() => import('./pages/TrainingZones').then(m => ({ d
 const Equipment      = lazy(() => import('./pages/Equipment').then(m => ({ default: m.Equipment })));
 const Admin          = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 
+function AppInner() {
+  useOfflineSync();
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <AppInner />
         <Suspense fallback={null}>
           <Routes>
             {/* Public */}
