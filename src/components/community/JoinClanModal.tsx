@@ -26,6 +26,8 @@ interface JoinClanModalProps {
     isOpen: boolean;
     onClose: () => void;
     onJoined: () => void;
+    initialCode?: string;
+    initialTab?: 'browse' | 'code';
 }
 
 const PAGE_SIZE = 10;
@@ -279,8 +281,8 @@ function ClanDetailPanel({
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps) {
-    const [tab, setTab] = useState<'browse' | 'code'>('browse');
+export function JoinClanModal({ isOpen, onClose, onJoined, initialCode, initialTab }: JoinClanModalProps) {
+    const [tab, setTab] = useState<'browse' | 'code'>(initialTab ?? 'browse');
     const [view, setView] = useState<'list' | 'detail'>('list');
     const [selectedClanId, setSelectedClanId] = useState<string | null>(null);
 
@@ -295,7 +297,7 @@ export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ── Code state ──────────────────────────────────────────────────────────
-    const [code, setCode] = useState('');
+    const [code, setCode] = useState(initialCode ?? '');
     const [codeLoading, setCodeLoading] = useState(false);
     const [codeError, setCodeError] = useState('');
 

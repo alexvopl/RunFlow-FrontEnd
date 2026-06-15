@@ -23,6 +23,7 @@ const LiveWorkout    = lazy(() => import('./pages/LiveWorkout').then(m => ({ def
 const TrainingZones  = lazy(() => import('./pages/TrainingZones').then(m => ({ default: m.TrainingZones })));
 const Equipment      = lazy(() => import('./pages/Equipment').then(m => ({ default: m.Equipment })));
 const Admin          = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const JoinPage       = lazy(() => import('./pages/JoinPage').then(m => ({ default: m.JoinPage })));
 
 function AppInner() {
   useOfflineSync();
@@ -69,6 +70,7 @@ function App() {
                 <Route path="/workout" element={<LiveWorkout />} />
                 <Route path="/zones" element={<TrainingZones />} />
                 <Route path="/equipment" element={<Equipment />} />
+                <Route path="/join/:code" element={<JoinPage />} />
               </Route>
             </Route>
           </Routes>

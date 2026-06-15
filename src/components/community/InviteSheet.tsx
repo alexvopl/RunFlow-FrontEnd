@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Link, Copy, Check, Loader2, RefreshCw, AlertTriangle, Clock, Users, UserPlus } from 'lucide-react';
+import { X, Link, Copy, Check, Loader2, RefreshCw, AlertTriangle, Clock, Users, UserPlus, Share2 } from 'lucide-react';
 import { api } from '../../services/api';
 import { resolveError } from '../../services/errors';
 
@@ -52,6 +52,10 @@ function fmtExpiry(iso: string): string {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
+function buildInviteLink(code: string): string {
+    return `${window.location.origin}/join/${code}`;
+}
+
 export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
     const [maxUses, setMaxUses] = useState(5);
     const [expiresInDays, setExpiresInDays] = useState(7);
@@ -60,6 +64,7 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
     const [invite, setInvite] = useState<RawInvite | null>(null);
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
+    const [shared, setShared] = useState(false);
 
     const reset = () => {
         setInvite(null);
@@ -67,6 +72,8 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
         setMaxUses(5);
         setExpiresInDays(7);
         setInvitedUserId('');
+        setCopied(false);
+        setShared(false);
     };
 
     const handleCreate = async () => {
@@ -86,9 +93,31 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
 
     const handleCopy = async () => {
         if (!invite?.inviteCode) return;
-        await navigator.clipboard.writeText(invite.inviteCode);
+        const link = buildInviteLink(invite.inviteCode);
+        await navigator.clipboard.writeText(link);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setTimeout(() => setCopied(false), 2500);
+    };
+
+    const handleShare = async () => {
+        if (!invite?.inviteCode) return;
+        const link = buildInviteLink(invite.inviteCode);
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: `Rejoins mon clan ${clanName} sur Runflow !`,
+                    text: `Utilise ce lien pour rejoindre mon clan de running 🏃`,
+                    url: link,
+                });
+                setShared(true);
+                setTimeout(() => setShared(false), 2500);
+            } catch {
+                // User cancelled or share failed — fall back to clipboard
+                await handleCopy();
+            }
+        } else {
+            await handleCopy();
+        }
     };
 
     const handleClose = () => {
@@ -263,9 +292,9 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                     <motion.div key="success"
                                         initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0 }}
-                                        className="space-y-4"
+                                        className="space-y-3"
                                     >
-                                        {/* Code display */}
+                                        {/* Code + link display */}
                                         <div className="rounded-[20px] p-5 text-center"
                                             style={{
                                                 background: 'linear-gradient(135deg, rgba(90,178,255,0.1), rgba(34,211,238,0.05))',
@@ -275,12 +304,16 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                                 Code d'invitation
                                             </div>
                                             <div
-                                                className="font-mono font-black text-3xl tracking-[0.2em] text-white mb-1"
+                                                className="font-mono font-black text-3xl tracking-[0.2em] text-white mb-3"
                                                 style={{ textShadow: '0 0 20px rgba(90,178,255,0.4)' }}
                                             >
                                                 {fmtCode(invite.inviteCode)}
                                             </div>
-                                            <div className="flex items-center justify-center gap-3 text-[9px] text-white/35 mt-2">
+                                            {/* Shareable link preview */}
+                                            <div className="text-[9px] font-mono text-white/30 bg-white/[0.04] rounded-[10px] px-3 py-1.5 break-all">
+                                                {buildInviteLink(invite.inviteCode)}
+                                            </div>
+                                            <div className="flex items-center justify-center gap-3 text-[9px] text-white/35 mt-3">
                                                 <span className="flex items-center gap-1">
                                                     <Users size={9} />
                                                     {invite.maxUses >= 100 ? 'Illimité' : `${invite.maxUses} max`}
@@ -293,11 +326,25 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                             </div>
                                         </div>
 
-                                        {/* Copy button */}
+                                        {/* Share button (native on mobile, copy fallback on desktop) */}
+                                        <motion.button
+                                            whileTap={{ scale: 0.97 }}
+                                            onClick={handleShare}
+                                            className="w-full py-3.5 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 text-white"
+                                            style={{
+                                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                                boxShadow: '0 6px 22px rgba(59,130,246,0.28)',
+                                            }}
+                                        >
+                                            {shared ? <Check size={15} /> : <Share2 size={15} />}
+                                            {shared ? 'Lien partagé !' : 'Partager le lien'}
+                                        </motion.button>
+
+                                        {/* Copy link button */}
                                         <motion.button
                                             whileTap={{ scale: 0.97 }}
                                             onClick={handleCopy}
-                                            className="w-full py-3.5 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 transition-all"
+                                            className="w-full py-3 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 transition-all"
                                             style={{
                                                 background: copied
                                                     ? 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(16,185,129,0.08))'
@@ -305,18 +352,18 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                                 border: copied
                                                     ? '1px solid rgba(16,185,129,0.38)'
                                                     : '1px solid rgba(255,255,255,0.1)',
-                                                color: copied ? '#10b981' : 'rgba(255,255,255,0.7)',
+                                                color: copied ? '#10b981' : 'rgba(255,255,255,0.6)',
                                             }}
                                         >
                                             {copied ? <Check size={15} /> : <Copy size={15} />}
-                                            {copied ? 'Code copié !' : 'Copier le code'}
+                                            {copied ? 'Lien copié !' : 'Copier le lien'}
                                         </motion.button>
 
                                         {/* Instructions */}
                                         <div className="rounded-[14px] px-4 py-3"
                                             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                                             <p className="text-[10px] text-white/35 leading-relaxed">
-                                                Partage ce code à tes coéquipiers. Ils devront l'entrer dans l'app pour rejoindre <span className="text-white/55 font-bold">{clanName}</span> directement.
+                                                Envoie ce lien à tes coéquipiers. En cliquant dessus, ils rejoignent <span className="text-white/55 font-bold">{clanName}</span> directement sans avoir à entrer de code manuellement.
                                             </p>
                                         </div>
 
@@ -325,7 +372,7 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                             onClick={reset}
                                             className="w-full py-2.5 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/35 hover:text-white/55 transition-colors"
                                         >
-                                            <RefreshCw size={11} />Créer un autre code
+                                            <RefreshCw size={11} />Créer un autre lien
                                         </button>
                                     </motion.div>
                                 )}
