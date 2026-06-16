@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, Timer, ShieldAlert, Users, Shield, CalendarDays, Flame } from 'lucide-react';
+import { Swords, Timer, ShieldAlert, Users, Shield, CalendarDays, Flame, Search, X, Loader2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useWarData } from '../hooks/useWarData';
 import { api } from '../services/api';
@@ -10,6 +10,7 @@ import { useInvalidation, type QueryTag } from '../services/queryInvalidation';
 import { SeasonView } from '../components/community/SeasonView';
 import { ActiveWarView } from '../components/community/ActiveWarView';
 import { ClanRivalriesView } from '../components/community/ClanRivalriesView';
+import { MatchmadeWarView, type MatchmadeWar } from '../components/community/MatchmadeWarView';
 
 // ─────────────────────────────────────────────
 // Types
@@ -92,6 +93,66 @@ export function Wars() {
         error: warError,
         refresh: refreshWar,
     } = useWarData(warId, { enabled: shouldLoadWar });
+
+    // ── Matchmaking state ────────────────────────────────────────────────────
+    type MmStatus = 'idle' | 'searching' | 'preparation' | 'active' | 'finished';
+    const [mmStatus, setMmStatus] = useState<MmStatus>('idle');
+    const [mmWar, setMmWar] = useState<MatchmadeWar | null>(null);
+    const [mmScores, setMmScores] = useState({ km1: 0, km2: 0 });
+    const [mmWinnerId, setMmWinnerId] = useState<string | null | undefined>(undefined);
+    const [mmLoading, setMmLoading] = useState(false);
+    const [mmError, setMmError] = useState('');
+    const [mmWaitSec, setMmWaitSec] = useState(0);
+
+    const fetchMmStatus = useCallback(async () => {
+        if (!myClan?.clan) return;
+        try {
+            const res = await api.get('/matchmaking/status');
+            const d = res.data;
+            setMmStatus(d.status as MmStatus);
+            setMmWar(d.war ?? null);
+            setMmScores(d.scores ?? { km1: 0, km2: 0 });
+            setMmWinnerId(d.winnerId);
+            setMmWaitSec(d.waitSeconds ?? 0);
+        } catch {
+            // Non-fatal: matchmaking status is supplementary
+        }
+    }, [myClan?.clan]);
+
+    useEffect(() => { void fetchMmStatus(); }, [fetchMmStatus]);
+
+    // Poll every 15s while searching or in a non-finished matchmade war
+    useEffect(() => {
+        if (mmStatus === 'idle' || mmStatus === 'finished') return;
+        const id = setInterval(() => void fetchMmStatus(), 15_000);
+        return () => clearInterval(id);
+    }, [mmStatus, fetchMmStatus]);
+
+    const handleStartSearch = async () => {
+        setMmLoading(true);
+        setMmError('');
+        try {
+            await api.post('/matchmaking/start');
+            await fetchMmStatus();
+        } catch (e) {
+            setMmError(resolveError(e, 'Impossible de lancer la recherche.'));
+        } finally {
+            setMmLoading(false);
+        }
+    };
+
+    const handleCancelSearch = async () => {
+        setMmLoading(true);
+        setMmError('');
+        try {
+            await api.delete('/matchmaking/cancel');
+            setMmStatus('idle');
+        } catch (e) {
+            setMmError(resolveError(e, 'Impossible d'annuler la recherche.'));
+        } finally {
+            setMmLoading(false);
+        }
+    };
 
     const fetchWarData = useCallback(() => {
         void fetchClan();
@@ -219,17 +280,19 @@ export function Wars() {
                 <AnimatePresence mode="wait">
                     {tab === 'war' ? (
                         <motion.div key="war" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                            <div className="glass-card rounded-[28px] p-8 text-center border-dashed">
-                                <div className="w-16 h-16 glass-hero rounded-[20px] flex items-center justify-center mx-auto mb-4">
-                                    <Swords size={26} className="text-primary/60" />
-                                </div>
-                                <p className="font-black text-white mb-1">Aucune guerre en cours</p>
-                                <p className="text-text-muted text-sm">
-                                    {warsEnabled === false
-                                        ? 'Les guerres ne sont pas encore disponibles sur cette API.'
-                                        : 'La prochaine guerre sera planifiée automatiquement. Reviens bientôt !'}
-                                </p>
-                            </div>
+                            <MatchmakingPanel
+                                status={mmStatus}
+                                war={mmWar}
+                                scores={mmScores}
+                                winnerId={mmWinnerId}
+                                waitSeconds={mmWaitSec}
+                                loading={mmLoading}
+                                error={mmError}
+                                myRole={myClan.membership?.role ?? 'member'}
+                                onStart={handleStartSearch}
+                                onCancel={handleCancelSearch}
+                                onRefresh={fetchMmStatus}
+                            />
                         </motion.div>
                     ) : tab === 'rivalries' ? (
                         <motion.div key="rivalries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -319,6 +382,127 @@ export function Wars() {
 
             </div>
         </div>
+    );
+}
+
+// ─── MatchmakingPanel ──────────────────────────────────────────────────────────
+
+function fmtWait(sec: number): string {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+}
+
+function MatchmakingPanel({
+    status, war, scores, winnerId, waitSeconds, loading, error, myRole,
+    onStart, onCancel, onRefresh,
+}: {
+    status: 'idle' | 'searching' | 'preparation' | 'active' | 'finished';
+    war: MatchmadeWar | null;
+    scores: { km1: number; km2: number };
+    winnerId?: string | null;
+    waitSeconds: number;
+    loading: boolean;
+    error: string;
+    myRole: string;
+    onStart: () => void;
+    onCancel: () => void;
+    onRefresh: () => void;
+}) {
+    const canManage = myRole === 'leader' || myRole === 'co_leader';
+
+    if (status === 'preparation' || status === 'active' || status === 'finished') {
+        if (!war) return null;
+        return (
+            <MatchmadeWarView
+                war={war}
+                scores={scores}
+                winnerId={winnerId}
+                onRefresh={onRefresh}
+            />
+        );
+    }
+
+    if (status === 'searching') {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card rounded-[28px] p-8 text-center"
+            >
+                <div className="relative w-16 h-16 mx-auto mb-4">
+                    <div className="absolute inset-0 rounded-[20px] glass-hero flex items-center justify-center">
+                        <Swords size={24} className="text-primary" />
+                    </div>
+                    <svg className="absolute inset-0 w-16 h-16 animate-spin" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(90,178,255,0.35)" strokeWidth="3"
+                            strokeDasharray="44 132" strokeLinecap="round" />
+                    </svg>
+                </div>
+                <p className="font-black text-white mb-1">Recherche en cours…</p>
+                <p className="text-text-muted text-sm mb-1">
+                    Nous cherchons un adversaire de niveau comparable.
+                </p>
+                <p className="text-[10px] text-white/25 font-mono mb-5">
+                    En attente depuis {fmtWait(waitSeconds)}
+                </p>
+
+                {error && (
+                    <p className="text-[11px] text-red-400 mb-3">{error}</p>
+                )}
+
+                {canManage && (
+                    <button
+                        onClick={onCancel}
+                        disabled={loading}
+                        className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-full text-sm font-black text-white/50 transition-all hover:text-white/75"
+                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+                    >
+                        {loading ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                        Annuler la recherche
+                    </button>
+                )}
+            </motion.div>
+        );
+    }
+
+    // idle
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card rounded-[28px] p-8 text-center"
+            style={{ borderStyle: canManage ? 'solid' : 'dashed' }}
+        >
+            <div className="w-16 h-16 glass-hero rounded-[20px] flex items-center justify-center mx-auto mb-4">
+                <Swords size={26} className="text-primary/70" />
+            </div>
+            <p className="font-black text-white mb-1">Aucune guerre en cours</p>
+            <p className="text-text-muted text-sm mb-5">
+                {canManage
+                    ? 'Lance une recherche pour défier un autre clan !'
+                    : 'Le leader ou un co-leader peut lancer une recherche de guerre.'}
+            </p>
+
+            {error && (
+                <p className="text-[11px] text-red-400 mb-3">{error}</p>
+            )}
+
+            {canManage && (
+                <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={onStart}
+                    disabled={loading}
+                    className="btn-primary py-3.5 px-6 text-sm font-black flex items-center justify-center gap-2 mx-auto disabled:opacity-50"
+                >
+                    {loading
+                        ? <Loader2 size={15} className="animate-spin" />
+                        : <Search size={15} />}
+                    Rechercher une guerre
+                </motion.button>
+            )}
+        </motion.div>
     );
 }
 

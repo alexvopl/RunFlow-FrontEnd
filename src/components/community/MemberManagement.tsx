@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Crown, Shield, Star, Users, X, ChevronRight,
-    AlertTriangle, Check, Loader2, LogOut, UserMinus,
+    AlertTriangle, Check, Loader2, LogOut, UserMinus, ArrowRightLeft,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { resolveError } from '../../services/errors';
@@ -153,7 +153,7 @@ function MemberRow({
 
 // ─── MemberSheet ───────────────────────────────────────────────────────────────
 
-type SheetStep = 'actions' | 'change_role' | 'confirm_kick' | 'confirm_leave';
+type SheetStep = 'actions' | 'change_role' | 'confirm_kick' | 'confirm_leave' | 'confirm_transfer';
 
 function MemberSheet({
     member, myRole, isSelf, clanId, isLeaderWithOthers,
@@ -215,6 +215,20 @@ function MemberSheet({
             onClose();
         } catch (e) {
             setError(resolveError(e, 'Erreur lors de la sortie du clan.'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleTransfer = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            await api.post(`/clans/${clanId}/transfer-leadership`, { newLeaderId: member.userId });
+            onRefresh();
+            onClose();
+        } catch (e) {
+            setError(resolveError(e, 'Erreur lors du transfert de leadership.'));
         } finally {
             setLoading(false);
         }
@@ -298,6 +312,23 @@ function MemberSheet({
                                             <div className="text-[10px] text-white/35">Action irréversible</div>
                                         </div>
                                     </button>
+
+                                    {myRole === 'leader' && (
+                                        <button
+                                            onClick={() => setStep('confirm_transfer')}
+                                            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-[16px] text-left transition-all"
+                                            style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.14)' }}
+                                        >
+                                            <div className="w-8 h-8 rounded-[10px] flex items-center justify-center"
+                                                style={{ background: 'rgba(251,191,36,0.12)' }}>
+                                                <ArrowRightLeft size={14} className="text-amber-400" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="text-sm font-black text-amber-400">Transférer le leadership</div>
+                                                <div className="text-[10px] text-white/35">Tu deviendras co-leader</div>
+                                            </div>
+                                        </button>
+                                    )}
                                 </>
                             )}
 
@@ -466,6 +497,59 @@ function MemberSheet({
                         </motion.div>
                     )}
 
+                    {/* ── Confirm transfer leadership ── */}
+                    {step === 'confirm_transfer' && (
+                        <motion.div key="transfer"
+                            initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
+                            className="space-y-4"
+                        >
+                            <button onClick={() => setStep('actions')}
+                                className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-white/35 hover:text-white/60 transition-colors">
+                                ← Retour
+                            </button>
+
+                            <div className="rounded-[18px] p-4 text-center"
+                                style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.15)' }}>
+                                <div className="w-12 h-12 rounded-[14px] flex items-center justify-center mx-auto mb-3"
+                                    style={{ background: 'rgba(251,191,36,0.12)' }}>
+                                    <ArrowRightLeft size={20} className="text-amber-400" />
+                                </div>
+                                <div className="text-base font-black text-white mb-1">
+                                    Transférer le leadership à {displayName(member)} ?
+                                </div>
+                                <p className="text-[11px] text-white/40 leading-relaxed">
+                                    {displayName(member)} deviendra le nouveau leader du clan. Tu passeras co-leader. Cette action est irréversible sans son accord.
+                                </p>
+                            </div>
+
+                            {error && (
+                                <div className="flex items-center gap-2 px-3 py-2.5 rounded-[12px]"
+                                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+                                    <AlertTriangle size={11} className="text-red-400 shrink-0" />
+                                    <span className="text-[10px] text-red-300">{error}</span>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2">
+                                <button onClick={() => setStep('actions')}
+                                    className="flex-1 py-3 rounded-[14px] font-black text-sm text-white/50"
+                                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                    Annuler
+                                </button>
+                                <motion.button
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={handleTransfer}
+                                    disabled={loading}
+                                    className="flex-1 py-3 rounded-[14px] font-black text-sm flex items-center justify-center gap-2"
+                                    style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.28), rgba(251,191,36,0.12))', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24' }}
+                                >
+                                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Crown size={14} />}
+                                    Transférer
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* ── Confirm leave ── */}
                     {step === 'confirm_leave' && (
                         <motion.div key="leave"
@@ -489,7 +573,7 @@ function MemberSheet({
                                         Tu es le leader du clan et d'autres membres sont présents. Le transfert de leadership n'est pas encore disponible via l'app.
                                     </p>
                                     <p className="text-[10px] text-amber-400/60 mt-2 font-bold">
-                                        Exclus tous les membres d&apos;abord, ou contacte le support.
+                                        Appuie sur un autre membre pour lui transférer le leadership.
                                     </p>
                                 </div>
                             ) : (

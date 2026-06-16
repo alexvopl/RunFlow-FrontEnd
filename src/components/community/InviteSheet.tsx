@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Link, Copy, Check, Loader2, RefreshCw, AlertTriangle, Clock, Users, UserPlus, Share2 } from 'lucide-react';
+import { X, Link, Copy, Check, Loader2, RefreshCw, AlertTriangle, Clock, Users, UserPlus, Share2, Search } from 'lucide-react';
 import { api } from '../../services/api';
 import { resolveError } from '../../services/errors';
 
@@ -9,10 +9,17 @@ import { resolveError } from '../../services/errors';
 interface RawInvite {
     id: string;
     clanId: string;
-    inviteCode: string;
+    inviteCode: string | null;
     maxUses: number;
     useCount: number;
     expiresAt: string;
+}
+
+interface UserProfile {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
 }
 
 interface Props {
@@ -59,19 +66,52 @@ function buildInviteLink(code: string): string {
 export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
     const [maxUses, setMaxUses] = useState(5);
     const [expiresInDays, setExpiresInDays] = useState(7);
-    const [invitedUserId, setInvitedUserId] = useState('');
     const [loading, setLoading] = useState(false);
     const [invite, setInvite] = useState<RawInvite | null>(null);
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
     const [shared, setShared] = useState(false);
 
+    // User search for targeted invite
+    const [userSearch, setUserSearch] = useState('');
+    const [userResults, setUserResults] = useState<UserProfile[]>([]);
+    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [searching, setSearching] = useState(false);
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        if (!userSearch.trim() || selectedUser) {
+            setUserResults([]);
+            return;
+        }
+        setSearching(true);
+        searchTimer.current = setTimeout(async () => {
+            try {
+                const res = await api.get(`/profiles/search?q=${encodeURIComponent(userSearch)}`);
+                const raw = res.data?.profiles ?? [];
+                setUserResults(raw.map((p: any) => ({
+                    id: p.id,
+                    username: p.username,
+                    displayName: p.display_name ?? null,
+                    avatarUrl: p.avatar_url ?? null,
+                })));
+            } catch {
+                setUserResults([]);
+            } finally {
+                setSearching(false);
+            }
+        }, 350);
+    }, [userSearch, selectedUser]);
+
     const reset = () => {
         setInvite(null);
         setError('');
         setMaxUses(5);
         setExpiresInDays(7);
-        setInvitedUserId('');
+        setUserSearch('');
+        setUserResults([]);
+        setSelectedUser(null);
         setCopied(false);
         setShared(false);
     };
@@ -81,7 +121,7 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
         setError('');
         try {
             const body: Record<string, unknown> = { maxUses, expiresInDays };
-            if (invitedUserId.trim()) body.invitedUserId = invitedUserId.trim();
+            if (selectedUser) body.invitedUserId = selectedUser.id;
             const res = await api.post(`/clans/${clanId}/invites`, body);
             setInvite(res.data.invite as RawInvite);
         } catch (e) {
@@ -236,27 +276,82 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                             </div>
                                         </div>
 
-                                        {/* Optional targeted user */}
+                                        {/* Optional targeted user search */}
                                         <div>
                                             <label className="text-[9px] font-black uppercase tracking-widest text-white/35 flex items-center gap-1.5 mb-2">
                                                 <UserPlus size={9} />Invitation ciblée
                                                 <span className="text-white/20 normal-case tracking-normal font-bold">(optionnel)</span>
                                             </label>
-                                            <input
-                                                type="text"
-                                                value={invitedUserId}
-                                                onChange={e => setInvitedUserId(e.target.value)}
-                                                placeholder="User ID du destinataire"
-                                                className="w-full px-3.5 py-2.5 rounded-[12px] text-[11px] text-white placeholder:text-white/25 font-mono focus:outline-none transition-all"
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.04)',
-                                                    border: invitedUserId
-                                                        ? '1px solid rgba(90,178,255,0.35)'
-                                                        : '1px solid rgba(255,255,255,0.08)',
-                                                }}
-                                            />
+
+                                            {selectedUser ? (
+                                                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-[12px]"
+                                                    style={{ background: 'rgba(90,178,255,0.08)', border: '1px solid rgba(90,178,255,0.28)' }}>
+                                                    <div className="w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0 font-black text-xs"
+                                                        style={{ background: 'rgba(90,178,255,0.18)', color: '#5ab2ff' }}>
+                                                        {(selectedUser.displayName || selectedUser.username).charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-[11px] font-black text-white truncate">
+                                                            {selectedUser.displayName || selectedUser.username}
+                                                        </div>
+                                                        <div className="text-[9px] text-white/40">@{selectedUser.username}</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setSelectedUser(null)}
+                                                        className="text-white/30 hover:text-white/60 transition-colors">
+                                                        <X size={13} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="relative">
+                                                    <div className="relative">
+                                                        <Search size={11} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
+                                                        <input
+                                                            type="text"
+                                                            value={userSearch}
+                                                            onChange={e => setUserSearch(e.target.value)}
+                                                            placeholder="Rechercher par pseudo…"
+                                                            className="w-full pl-8 pr-3.5 py-2.5 rounded-[12px] text-[11px] text-white placeholder:text-white/25 focus:outline-none transition-all"
+                                                            style={{
+                                                                background: 'rgba(255,255,255,0.04)',
+                                                                border: userSearch
+                                                                    ? '1px solid rgba(90,178,255,0.35)'
+                                                                    : '1px solid rgba(255,255,255,0.08)',
+                                                            }}
+                                                        />
+                                                        {searching && (
+                                                            <Loader2 size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 animate-spin" />
+                                                        )}
+                                                    </div>
+
+                                                    {userResults.length > 0 && (
+                                                        <div className="mt-1.5 rounded-[12px] overflow-hidden"
+                                                            style={{ border: '1px solid rgba(255,255,255,0.08)', background: '#0a1829' }}>
+                                                            {userResults.map(u => (
+                                                                <button
+                                                                    key={u.id}
+                                                                    onClick={() => { setSelectedUser(u); setUserSearch(''); setUserResults([]); }}
+                                                                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/[0.04] transition-colors"
+                                                                >
+                                                                    <div className="w-7 h-7 rounded-[9px] flex items-center justify-center shrink-0 font-black text-xs"
+                                                                        style={{ background: 'rgba(90,178,255,0.12)', color: '#5ab2ff' }}>
+                                                                        {(u.displayName || u.username).charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="text-[11px] font-black text-white truncate">
+                                                                            {u.displayName || u.username}
+                                                                        </div>
+                                                                        <div className="text-[9px] text-white/40">@{u.username}</div>
+                                                                    </div>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             <p className="text-[8px] text-white/20 mt-1.5 leading-relaxed">
-                                                Si renseigné, seul cet utilisateur pourra utiliser ce code.
+                                                Si renseigné, seul cet utilisateur pourra accepter cette invitation.
                                             </p>
                                         </div>
 
@@ -294,78 +389,112 @@ export function InviteSheet({ clanId, clanName, isOpen, onClose }: Props) {
                                         exit={{ opacity: 0 }}
                                         className="space-y-3"
                                     >
-                                        {/* Code + link display */}
-                                        <div className="rounded-[20px] p-5 text-center"
-                                            style={{
-                                                background: 'linear-gradient(135deg, rgba(90,178,255,0.1), rgba(34,211,238,0.05))',
-                                                border: '1px solid rgba(90,178,255,0.2)',
-                                            }}>
-                                            <div className="text-[8px] font-black uppercase tracking-widest text-white/35 mb-2">
-                                                Code d'invitation
-                                            </div>
-                                            <div
-                                                className="font-mono font-black text-3xl tracking-[0.2em] text-white mb-3"
-                                                style={{ textShadow: '0 0 20px rgba(90,178,255,0.4)' }}
-                                            >
-                                                {fmtCode(invite.inviteCode)}
-                                            </div>
-                                            {/* Shareable link preview */}
-                                            <div className="text-[9px] font-mono text-white/30 bg-white/[0.04] rounded-[10px] px-3 py-1.5 break-all">
-                                                {buildInviteLink(invite.inviteCode)}
-                                            </div>
-                                            <div className="flex items-center justify-center gap-3 text-[9px] text-white/35 mt-3">
-                                                <span className="flex items-center gap-1">
-                                                    <Users size={9} />
-                                                    {invite.maxUses >= 100 ? 'Illimité' : `${invite.maxUses} max`}
-                                                </span>
-                                                <span>·</span>
-                                                <span className="flex items-center gap-1">
-                                                    <Clock size={9} />
-                                                    Expire le {fmtExpiry(invite.expiresAt)}
-                                                </span>
-                                            </div>
-                                        </div>
+                                        {invite.inviteCode ? (
+                                            <>
+                                                {/* Code + link display (generic invite) */}
+                                                <div className="rounded-[20px] p-5 text-center"
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, rgba(90,178,255,0.1), rgba(34,211,238,0.05))',
+                                                        border: '1px solid rgba(90,178,255,0.2)',
+                                                    }}>
+                                                    <div className="text-[8px] font-black uppercase tracking-widest text-white/35 mb-2">
+                                                        Code d'invitation
+                                                    </div>
+                                                    <div
+                                                        className="font-mono font-black text-3xl tracking-[0.2em] text-white mb-3"
+                                                        style={{ textShadow: '0 0 20px rgba(90,178,255,0.4)' }}
+                                                    >
+                                                        {fmtCode(invite.inviteCode)}
+                                                    </div>
+                                                    <div className="text-[9px] font-mono text-white/30 bg-white/[0.04] rounded-[10px] px-3 py-1.5 break-all">
+                                                        {buildInviteLink(invite.inviteCode)}
+                                                    </div>
+                                                    <div className="flex items-center justify-center gap-3 text-[9px] text-white/35 mt-3">
+                                                        <span className="flex items-center gap-1">
+                                                            <Users size={9} />
+                                                            {invite.maxUses >= 100 ? 'Illimité' : `${invite.maxUses} max`}
+                                                        </span>
+                                                        <span>·</span>
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock size={9} />
+                                                            Expire le {fmtExpiry(invite.expiresAt)}
+                                                        </span>
+                                                    </div>
+                                                </div>
 
-                                        {/* Share button (native on mobile, copy fallback on desktop) */}
-                                        <motion.button
-                                            whileTap={{ scale: 0.97 }}
-                                            onClick={handleShare}
-                                            className="w-full py-3.5 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 text-white"
-                                            style={{
-                                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                                                boxShadow: '0 6px 22px rgba(59,130,246,0.28)',
-                                            }}
-                                        >
-                                            {shared ? <Check size={15} /> : <Share2 size={15} />}
-                                            {shared ? 'Lien partagé !' : 'Partager le lien'}
-                                        </motion.button>
+                                                <motion.button
+                                                    whileTap={{ scale: 0.97 }}
+                                                    onClick={handleShare}
+                                                    className="w-full py-3.5 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 text-white"
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                                        boxShadow: '0 6px 22px rgba(59,130,246,0.28)',
+                                                    }}
+                                                >
+                                                    {shared ? <Check size={15} /> : <Share2 size={15} />}
+                                                    {shared ? 'Lien partagé !' : 'Partager le lien'}
+                                                </motion.button>
 
-                                        {/* Copy link button */}
-                                        <motion.button
-                                            whileTap={{ scale: 0.97 }}
-                                            onClick={handleCopy}
-                                            className="w-full py-3 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 transition-all"
-                                            style={{
-                                                background: copied
-                                                    ? 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(16,185,129,0.08))'
-                                                    : 'rgba(255,255,255,0.06)',
-                                                border: copied
-                                                    ? '1px solid rgba(16,185,129,0.38)'
-                                                    : '1px solid rgba(255,255,255,0.1)',
-                                                color: copied ? '#10b981' : 'rgba(255,255,255,0.6)',
-                                            }}
-                                        >
-                                            {copied ? <Check size={15} /> : <Copy size={15} />}
-                                            {copied ? 'Lien copié !' : 'Copier le lien'}
-                                        </motion.button>
+                                                <motion.button
+                                                    whileTap={{ scale: 0.97 }}
+                                                    onClick={handleCopy}
+                                                    className="w-full py-3 rounded-[16px] font-black text-sm flex items-center justify-center gap-2 transition-all"
+                                                    style={{
+                                                        background: copied
+                                                            ? 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(16,185,129,0.08))'
+                                                            : 'rgba(255,255,255,0.06)',
+                                                        border: copied
+                                                            ? '1px solid rgba(16,185,129,0.38)'
+                                                            : '1px solid rgba(255,255,255,0.1)',
+                                                        color: copied ? '#10b981' : 'rgba(255,255,255,0.6)',
+                                                    }}
+                                                >
+                                                    {copied ? <Check size={15} /> : <Copy size={15} />}
+                                                    {copied ? 'Lien copié !' : 'Copier le lien'}
+                                                </motion.button>
 
-                                        {/* Instructions */}
-                                        <div className="rounded-[14px] px-4 py-3"
-                                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                                            <p className="text-[10px] text-white/35 leading-relaxed">
-                                                Envoie ce lien à tes coéquipiers. En cliquant dessus, ils rejoignent <span className="text-white/55 font-bold">{clanName}</span> directement sans avoir à entrer de code manuellement.
-                                            </p>
-                                        </div>
+                                                <div className="rounded-[14px] px-4 py-3"
+                                                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                                    <p className="text-[10px] text-white/35 leading-relaxed">
+                                                        Envoie ce lien à tes coéquipiers. En cliquant dessus, ils rejoignent <span className="text-white/55 font-bold">{clanName}</span> directement.
+                                                    </p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {/* Targeted invite success */}
+                                                <div className="rounded-[20px] p-5 text-center"
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.04))',
+                                                        border: '1px solid rgba(16,185,129,0.2)',
+                                                    }}>
+                                                    <div className="w-12 h-12 rounded-[14px] flex items-center justify-center mx-auto mb-3"
+                                                        style={{ background: 'rgba(16,185,129,0.15)' }}>
+                                                        <Check size={22} className="text-emerald-400" />
+                                                    </div>
+                                                    <div className="text-base font-black text-white mb-1">Invitation envoyée !</div>
+                                                    {selectedUser && (
+                                                        <p className="text-[11px] text-white/50 leading-relaxed">
+                                                            <span className="text-white/70 font-bold">
+                                                                {selectedUser.displayName || `@${selectedUser.username}`}
+                                                            </span>{' '}
+                                                            recevra une invitation pour rejoindre <span className="text-white/70 font-bold">{clanName}</span>.
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center justify-center gap-1 text-[9px] text-white/30 mt-3">
+                                                        <Clock size={9} />
+                                                        Expire le {fmtExpiry(invite.expiresAt)}
+                                                    </div>
+                                                </div>
+
+                                                <div className="rounded-[14px] px-4 py-3"
+                                                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                                    <p className="text-[10px] text-white/35 leading-relaxed">
+                                                        L'utilisateur verra cette invitation dans la section Communauté de son app et pourra l'accepter directement.
+                                                    </p>
+                                                </div>
+                                            </>
+                                        )}
 
                                         {/* Create another */}
                                         <button

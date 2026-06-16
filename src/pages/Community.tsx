@@ -9,6 +9,7 @@ import { JoinClanModal } from '../components/community/JoinClanModal';
 import { LeaderboardTabs } from '../components/community/LeaderboardTabs';
 import { InviteSheet } from '../components/community/InviteSheet';
 import { ClanHome, type ClanHomeData, type MembershipData } from '../components/community/ClanHome';
+import { PendingInviteBanner } from '../components/community/PendingInviteBanner';
 import { ClanChat } from '../components/community/ClanChat';
 import { UserLeaderboard } from '../components/leaderboard/UserLeaderboard';
 import { ClanLeaderboard } from '../components/leaderboard/ClanLeaderboard';
@@ -142,6 +143,8 @@ export function Community() {
                                     onLeft={() => setClan(null)}
                                 />
                             ) : (
+                                <>
+                                <PendingInviteBanner onJoined={fetchClan} />
                                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                                     className="glass-hero rounded-[28px] p-8 text-center">
                                     <div className="w-16 h-16 glass-card rounded-[20px] flex items-center justify-center mx-auto mb-5">
@@ -162,6 +165,7 @@ export function Community() {
                                         </button>
                                     </div>
                                 </motion.div>
+                                </>
                             )}
 
                             <div>
