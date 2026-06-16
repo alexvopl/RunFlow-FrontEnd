@@ -58,11 +58,12 @@ function RankBadge({ rank }: { rank: number }) {
 export function ClanLeaderboard() {
     const [rankings, setRankings] = useState<ClanRanking[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     useEffect(() => {
         api.get('/leaderboards/clans', { params: { limit: 20 } })
             .then(res => setRankings(Array.isArray(res.data?.rankings) ? res.data.rankings : []))
-            .catch(() => {})
+            .catch(() => setError(true))
             .finally(() => setLoading(false));
     }, []);
 
@@ -80,6 +81,13 @@ export function ClanLeaderboard() {
                     <div className="skeleton h-4 w-10 rounded-lg" />
                 </div>
             ))}
+        </div>
+    );
+
+    if (error) return (
+        <div className="rounded-[20px] p-8 text-center"
+            style={{ background: 'rgba(255,255,255,0.025)', border: '1px dashed rgba(239,68,68,0.15)' }}>
+            <p className="text-sm font-bold text-white/30">Impossible de charger le classement</p>
         </div>
     );
 

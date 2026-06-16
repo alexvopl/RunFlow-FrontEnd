@@ -250,12 +250,13 @@ function PreferencesSheet({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
     const toggle = useCallback((key: keyof NotifPreferences) => {
         setPrefs(prev => {
             if (!prev) return prev;
+            const previous = prev;
             const updated = { ...prev, [key]: !(prev[key] ?? true) };
             if (debounceRef.current) clearTimeout(debounceRef.current);
             debounceRef.current = setTimeout(() => {
                 setSaving(true);
                 api.patch('/notifications/preferences', updated)
-                    .catch(() => {})
+                    .catch(() => setPrefs(previous))
                     .finally(() => setSaving(false));
             }, 300);
             return updated;
