@@ -148,7 +148,7 @@ export function Wars() {
             await api.delete('/matchmaking/cancel');
             setMmStatus('idle');
         } catch (e) {
-            setMmError(resolveError(e, 'Impossible d'annuler la recherche.'));
+            setMmError(resolveError(e, "Impossible d'annuler la recherche."));
         } finally {
             setMmLoading(false);
         }
