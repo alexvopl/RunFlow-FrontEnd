@@ -1,0 +1,21 @@
+[Unit]
+Description=RunFlow beta web frontend
+Requires=docker.service
+Wants=network-online.target runflow-compose.service
+After=docker.service network-online.target runflow-compose.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/runflow/frontend
+Environment=COMPOSE_PROJECT_NAME=runflow-web
+Environment=RUNFLOW_WEB_COMPOSE_FILE=/opt/runflow/frontend/deploy/compose/runflow-web.compose.yml
+Environment=RUNFLOW_FRONTEND_ENV_FILE=/etc/runflow/frontend.env
+ExecStart=/usr/bin/docker compose --env-file ${RUNFLOW_FRONTEND_ENV_FILE} -f ${RUNFLOW_WEB_COMPOSE_FILE} up -d --build --remove-orphans
+ExecReload=/usr/bin/docker compose --env-file ${RUNFLOW_FRONTEND_ENV_FILE} -f ${RUNFLOW_WEB_COMPOSE_FILE} up -d --build --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file ${RUNFLOW_FRONTEND_ENV_FILE} -f ${RUNFLOW_WEB_COMPOSE_FILE} down
+TimeoutStartSec=900
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

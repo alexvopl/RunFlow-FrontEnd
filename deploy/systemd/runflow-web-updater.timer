@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll Git and update the RunFlow beta web frontend
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=runflow-web-updater.service
+
+[Install]
+WantedBy=timers.target

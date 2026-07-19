@@ -1,0 +1,29 @@
+name: runflow-web
+
+services:
+  frontend:
+    image: runflow/frontend:${RUNFLOW_FRONTEND_IMAGE_TAG:-beta}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required}
+        VITE_APP_URL: ${VITE_APP_URL:?VITE_APP_URL is required}
+        VITE_AUTH_REDIRECT_URL: ${VITE_AUTH_REDIRECT_URL:?VITE_AUTH_REDIRECT_URL is required}
+        VITE_PASSWORD_RESET_URL: ${VITE_PASSWORD_RESET_URL:?VITE_PASSWORD_RESET_URL is required}
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/cache/nginx:size=16m,uid=101,gid=101
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

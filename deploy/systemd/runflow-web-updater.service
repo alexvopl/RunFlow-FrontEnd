@@ -1,0 +1,13 @@
+[Unit]
+Description=Update RunFlow beta web frontend from Git
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/runflow/frontend
+Environment=RUNFLOW_WEB_REPO_DIR=/opt/runflow/frontend
+Environment=RUNFLOW_WEB_DEPLOY_BRANCH=codex/strava-beta-oauth
+Environment=RUNFLOW_WEB_COMPOSE_FILE=/opt/runflow/frontend/deploy/compose/runflow-web.compose.yml
+Environment=RUNFLOW_FRONTEND_ENV_FILE=/etc/runflow/frontend.env
+ExecStart=/opt/runflow/frontend/scripts/runflow-web-update.sh
