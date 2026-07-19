@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { reportError } from '../../services/sentry';
 
 interface Props {
     children: ReactNode;
@@ -18,6 +19,9 @@ export class ErrorBoundary extends Component<Props, State> {
     componentDidCatch(error: Error, info: { componentStack: string }) {
         const message = `[ErrorBoundary] ${error.message}\n${info.componentStack}`;
         console.error(message);
+
+        // Remonte l'erreur à Sentry (no-op si le reporting n'est pas configuré)
+        reportError(error, { componentStack: info.componentStack });
 
         // POST to local dev log endpoint if available
         if (import.meta.env.DEV) {
