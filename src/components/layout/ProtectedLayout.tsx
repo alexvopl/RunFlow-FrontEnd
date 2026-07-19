@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
-import { Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { usePushToken } from '../../hooks/usePushToken';
 
 export function ProtectedLayout() {
-    const { isAuthenticated, isLoading, logout } = useAuth();
+    const { user, isAuthenticated, isLoading, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     usePushToken();
 
     useEffect(() => {
@@ -35,6 +36,14 @@ export function ProtectedLayout() {
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
+    }
+
+    if (user && !user.onboardingCompleted && location.pathname !== '/onboarding' && location.pathname !== '/admin') {
+        return <Navigate to="/onboarding" replace />;
+    }
+
+    if (user?.onboardingCompleted && location.pathname === '/onboarding') {
+        return <Navigate to="/" replace />;
     }
 
     return <Outlet />;

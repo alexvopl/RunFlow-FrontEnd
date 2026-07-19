@@ -22,6 +22,7 @@ const LiveWorkout    = lazy(() => import('./pages/LiveWorkout').then(m => ({ def
 const TrainingZones  = lazy(() => import('./pages/TrainingZones').then(m => ({ default: m.TrainingZones })));
 const Equipment      = lazy(() => import('./pages/Equipment').then(m => ({ default: m.Equipment })));
 const Admin          = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const Onboarding     = lazy(() => import('./pages/Onboarding').then(m => ({ default: m.Onboarding })));
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
 
             {/* Protected */}
             <Route element={<ProtectedLayout />}>
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/admin" element={<Admin />} />
               <Route element={<Layout />}>
                 <Route path="/" element={<Training />} />

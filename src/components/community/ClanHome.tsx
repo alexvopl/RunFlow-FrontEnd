@@ -227,7 +227,7 @@ export function ClanHome({ clan, membership, myUserId, onInvite, onChat, onRefre
             >
                 <div className="text-[8px] font-black uppercase tracking-widest mb-3"
                     style={{ color: `${rcfg.color}90` }}>
-                    Mon membership
+                    Mon rôle dans le clan
                 </div>
 
                 <div className="flex items-center gap-3 mb-3">

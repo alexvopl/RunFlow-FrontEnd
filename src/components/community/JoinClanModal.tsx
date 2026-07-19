@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     X, Loader2, Users, Search, AlertCircle, ChevronRight,
-    Hash, ArrowRight, ChevronLeft, Globe, Lock, Zap, Shield,
+    Hash, ArrowRight, ChevronLeft, Globe, Lock, Zap, Shield, MapPin,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
 import { resolveError } from '../../services/errors';
+import { useAuth } from '../../contexts/AuthContext';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ interface ClanPreview {
     name: string;
     description: string | null;
     badgeUrl: string | null;
+    city: string | null;
     isPublic: boolean;
     minWeeklyKm: number;
     maxMembers: number;
@@ -177,6 +179,7 @@ function ClanDetailPanel({
                                 <h2 className="text-xl font-black tracking-tight text-white leading-tight">{clan.name}</h2>
                                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                     <PublicBadge isPublic={clan.isPublic} />
+                                    {clan.city && <span className="flex items-center gap-1 text-[10px] font-bold text-primary"><MapPin size={10} />{clan.city}</span>}
                                     {spotsLeft <= 5 && spotsLeft > 0 && (
                                         <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest"
                                             style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}>
@@ -280,6 +283,7 @@ function ClanDetailPanel({
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps) {
+    const { user } = useAuth();
     const [tab, setTab] = useState<'browse' | 'code'>('browse');
     const [view, setView] = useState<'list' | 'detail'>('list');
     const [selectedClanId, setSelectedClanId] = useState<string | null>(null);
@@ -306,8 +310,13 @@ export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps)
         else setBrowseLoading(true);
         setBrowseError('');
         try {
-            const res = await api.get('/clans', { params: { page: p, limit: PAGE_SIZE, search: q || undefined } });
-            const list: ClanPreview[] = Array.isArray(res.data?.clans) ? res.data.clans : [];
+            const requestParams = { page: p, limit: PAGE_SIZE, search: q || undefined, city: user?.city || undefined };
+            let res = await api.get('/clans', { params: requestParams });
+            let list: ClanPreview[] = Array.isArray(res.data?.clans) ? res.data.clans : [];
+            if (p === 1 && list.length === 0 && user?.city) {
+                res = await api.get('/clans', { params: { page: p, limit: PAGE_SIZE, search: q || undefined } });
+                list = Array.isArray(res.data?.clans) ? res.data.clans : [];
+            }
             setClans(prev => append ? [...prev, ...list] : list);
             setHasMore(res.data?.hasMore ?? false);
             setPage(p);
@@ -317,7 +326,7 @@ export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps)
             setBrowseLoading(false);
             setLoadingMore(false);
         }
-    }, []);
+    }, [user?.city]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -504,6 +513,7 @@ export function JoinClanModal({ isOpen, onClose, onJoined }: JoinClanModalProps)
                                                                 )}
                                                                 <div className="flex items-center gap-2.5 text-[9px] text-text-muted/60 font-mono font-bold">
                                                                     <span><span className="text-white/50">{clan.memberCount}</span>/{clan.maxMembers} membres</span>
+                                                                    {clan.city && <span className="flex items-center gap-1"><MapPin size={8} />{clan.city}</span>}
                                                                     {clan.minWeeklyKm > 0 && <span>· min {clan.minWeeklyKm} km/sem</span>}
                                                                 </div>
                                                             </div>

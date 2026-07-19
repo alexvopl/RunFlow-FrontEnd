@@ -28,7 +28,7 @@ export function Signup() {
         try {
             const result = await signup(email, password, acceptTerms);
             if (result.status === 'authenticated') {
-                navigate('/');
+                navigate('/onboarding');
                 return;
             }
             setPendingConfirmationEmail(result.email);

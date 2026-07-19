@@ -23,10 +23,11 @@ function fmtDate(iso: string): string {
 interface Props {
     clanId: string;
     clanName: string;
+    city?: string | null;
 }
 
-export function SeasonView({ clanId, clanName }: Props) {
-    const { data, loading, error } = useSeasonData(clanId);
+export function SeasonView({ clanId, clanName, city }: Props) {
+    const { data, loading, error } = useSeasonData(clanId, city);
 
     if (loading) return <SeasonSkeleton />;
 

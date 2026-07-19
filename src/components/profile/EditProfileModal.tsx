@@ -21,7 +21,7 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
         e.preventDefault();
         setLoading(true);
         try {
-            await api.put('/profiles/me', { name });
+            await api.put('/profiles/me', { display_name: name });
             window.location.reload();
             onClose();
         } catch (error) {

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X, Loader2, Shield, AlertCircle, Globe, Lock, Minus, Plus } from 'lucide-react';
+import { X, Loader2, Shield, AlertCircle, Globe, Lock, Minus, Plus, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
 import { resolveError } from '../../services/errors';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CreateClanModalProps {
     isOpen: boolean;
@@ -15,12 +16,14 @@ interface CreateClanModalProps {
 function validate(form: {
     name: string;
     description: string;
+    city: string;
     minWeeklyKm: number;
     maxMembers: number;
 }): string | null {
     if (form.name.trim().length < 3) return 'Le nom doit comporter au moins 3 caractères.';
     if (form.name.trim().length > 30) return 'Le nom ne peut pas dépasser 30 caractères.';
     if (form.description.length > 500) return 'La description ne peut pas dépasser 500 caractères.';
+    if (form.city.trim().length < 2) return 'Indique la ville du clan.';
     if (form.minWeeklyKm < 0 || form.minWeeklyKm > 200) return 'Le kilométrage minimum doit être entre 0 et 200.';
     if (form.maxMembers < 2 || form.maxMembers > 100) return 'Le nombre de membres doit être entre 2 et 100.';
     return null;
@@ -109,9 +112,11 @@ function Stepper({
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function CreateClanModal({ isOpen, onClose, onCreated }: CreateClanModalProps) {
+    const { user } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
         description: '',
+        city: user?.city ?? '',
         isPublic: true,
         minWeeklyKm: 0,
         maxMembers: 50,
@@ -123,7 +128,7 @@ export function CreateClanModal({ isOpen, onClose, onCreated }: CreateClanModalP
         setFormData(prev => ({ ...prev, [k]: v }));
 
     const handleClose = () => {
-        setFormData({ name: '', description: '', isPublic: true, minWeeklyKm: 0, maxMembers: 50 });
+        setFormData({ name: '', description: '', city: user?.city ?? '', isPublic: true, minWeeklyKm: 0, maxMembers: 50 });
         setErrorMessage(null);
         onClose();
     };
@@ -138,6 +143,7 @@ export function CreateClanModal({ isOpen, onClose, onCreated }: CreateClanModalP
             await api.post('/clans', {
                 name: formData.name.trim(),
                 description: formData.description.trim() || undefined,
+                city: formData.city.trim(),
                 isPublic: formData.isPublic,
                 minWeeklyKm: formData.minWeeklyKm,
                 maxMembers: formData.maxMembers,
@@ -263,6 +269,24 @@ export function CreateClanModal({ isOpen, onClose, onCreated }: CreateClanModalP
                                             {descLen}/500
                                         </span>
                                     </div>
+                                </div>
+
+                                {/* Ville */}
+                                <div>
+                                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                        <MapPin size={11} /> Ville du clan
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Ex : Paris"
+                                        value={formData.city}
+                                        onChange={e => set('city', e.target.value)}
+                                        maxLength={80}
+                                        className="w-full rounded-[14px] px-4 py-3 text-white text-sm placeholder:text-text-muted/40 focus:outline-none transition-all"
+                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
+                                    />
+                                    <p className="text-[9px] text-text-muted/45 mt-1.5">Les défis, saisons et adversaires seront choisis dans cette ville.</p>
                                 </div>
 
                                 {/* Visibility toggle */}

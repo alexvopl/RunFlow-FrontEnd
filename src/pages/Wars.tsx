@@ -21,6 +21,7 @@ interface ClanInfo {
     badgeUrl: string | null;
     memberCount: number;
     totalDistanceM: number;
+    city: string | null;
 }
 
 interface MyClanData {
@@ -50,6 +51,11 @@ function formatHours(h: number): string {
     if (hours === 0) return `${minutes}m`;
     if (minutes === 0) return `${hours}h`;
     return `${hours}h ${minutes}m`;
+}
+
+function warPeriod(startsAt: string, endsAt: string): string {
+    const format = (value: string) => new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    return `${format(startsAt)} – ${format(endsAt)}`;
 }
 
 // ─────────────────────────────────────────────
@@ -237,7 +243,7 @@ export function Wars() {
                         </motion.div>
                     ) : (
                         <motion.div key="season" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                            <SeasonView clanId={clan.id} clanName={clan.name} />
+                            <SeasonView clanId={clan.id} clanName={clan.name} city={clan.city} />
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -257,7 +263,7 @@ export function Wars() {
                             {tab === 'season' ? 'Saison' : tab === 'rivalries' ? 'Rivalités' : 'Guerre'}
                         </h1>
                         <p className="text-text-muted text-sm mt-0.5">
-                            {tab === 'season' || tab === 'rivalries' ? clan.name : `Semaine ${war.weekNumber}`}
+                            {tab === 'season' || tab === 'rivalries' ? clan.name : `Guerre locale · ${warPeriod(war.startsAt, war.endsAt)}`}
                         </p>
                     </div>
                     {tab === 'war' && <WarStatusBadge status={war.status} />}
@@ -269,7 +275,7 @@ export function Wars() {
                 <AnimatePresence mode="wait">
                 {tab === 'season' ? (
                     <motion.div key="season" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                        <SeasonView clanId={clan.id} clanName={clan.name} />
+                        <SeasonView clanId={clan.id} clanName={clan.name} city={clan.city} />
                     </motion.div>
                 ) : tab === 'rivalries' ? (
                     <motion.div key="rivalries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>

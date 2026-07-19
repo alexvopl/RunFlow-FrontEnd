@@ -65,7 +65,7 @@ const EMPTY: SeasonData = {
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useSeasonData(clanId?: string | null, { enabled = true } = {}) {
+export function useSeasonData(clanId?: string | null, city?: string | null, { enabled = true } = {}) {
     const [data, setData] = useState<SeasonData>(EMPTY);
     const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export function useSeasonData(clanId?: string | null, { enabled = true } = {}) {
         if (!enabled) { setLoading(false); return; }
         setLoading(true);
         try {
-            const seasonRes = await api.get('/game/seasons/current');
+            const seasonRes = await api.get('/game/seasons/current', { params: city ? { city } : undefined });
             const sd = seasonRes.data;
 
             let rating: ClanRating | null = null;
@@ -102,7 +102,7 @@ export function useSeasonData(clanId?: string | null, { enabled = true } = {}) {
         } finally {
             setLoading(false);
         }
-    }, [enabled, clanId]);
+    }, [enabled, clanId, city]);
 
     usePolling(fetch, { enabled, intervalMs: 5 * 60 * 1000 });
 

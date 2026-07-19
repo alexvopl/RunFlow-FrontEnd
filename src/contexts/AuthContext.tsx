@@ -21,6 +21,10 @@ interface User {
     trophies?: number;
     followersCount?: number;
     followingCount?: number;
+    city?: string;
+    runnerLevel?: 'beginner' | 'intermediate' | 'advanced';
+    runningGoal?: string;
+    onboardingCompleted: boolean;
 }
 
 interface AuthContextType {
@@ -30,6 +34,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     signup: (email: string, password: string, acceptTerms: boolean) => Promise<SignupResult>;
     completeSession: (accessToken: string, refreshToken?: string) => Promise<void>;
+    refreshUser: () => Promise<void>;
     logout: () => void;
 }
 
@@ -48,6 +53,7 @@ interface ProfilePayload {
     followers_count?: number;
     followingCount?: number;
     following_count?: number;
+    preferences?: Record<string, unknown>;
 }
 
 interface ProfileResponse {
@@ -65,14 +71,24 @@ const extractProfile = (payload: ProfileResponse | ProfilePayload | null): Profi
     return isProfileResponse(payload) ? payload.profile ?? null : payload;
 };
 
-const mapUser = (authData: AuthUserPayload | null | undefined, profileData?: ProfilePayload | null): User => ({
-    id: authData?.userId ?? authData?.user_id ?? authData?.id ?? profileData?.id ?? '',
-    email: authData?.email ?? profileData?.email ?? '',
-    name: profileData?.displayName ?? profileData?.display_name ?? profileData?.username ?? authData?.name,
-    trophies: profileData?.trophies ?? authData?.trophies,
-    followersCount: profileData?.followersCount ?? profileData?.followers_count ?? authData?.followersCount ?? authData?.followers_count,
-    followingCount: profileData?.followingCount ?? profileData?.following_count ?? authData?.followingCount ?? authData?.following_count,
-});
+const mapUser = (authData: AuthUserPayload | null | undefined, profileData?: ProfilePayload | null): User => {
+    const preferences = profileData?.preferences ?? {};
+    const runnerLevel = ['beginner', 'intermediate', 'advanced'].includes(String(preferences.runnerLevel))
+        ? preferences.runnerLevel as User['runnerLevel']
+        : undefined;
+    return {
+        id: authData?.userId ?? authData?.user_id ?? authData?.id ?? profileData?.id ?? '',
+        email: authData?.email ?? profileData?.email ?? '',
+        name: profileData?.displayName ?? profileData?.display_name ?? profileData?.username ?? authData?.name,
+        trophies: profileData?.trophies ?? authData?.trophies,
+        followersCount: profileData?.followersCount ?? profileData?.followers_count ?? authData?.followersCount ?? authData?.followers_count,
+        followingCount: profileData?.followingCount ?? profileData?.following_count ?? authData?.followingCount ?? authData?.following_count,
+        city: typeof preferences.city === 'string' ? preferences.city : undefined,
+        runnerLevel,
+        runningGoal: typeof preferences.runningGoal === 'string' ? preferences.runningGoal : undefined,
+        onboardingCompleted: preferences.onboardingCompleted === true,
+    };
+};
 
 const fetchCurrentUser = async () => {
     const [whoamiRes, profileRes] = await Promise.all([
@@ -120,6 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (refreshToken) {
             await refreshAccessToken(refreshToken);
         }
+        setUser(await fetchCurrentUser());
+    };
+
+    const refreshUser = async () => {
         setUser(await fetchCurrentUser());
     };
 
@@ -176,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             login,
             signup,
             completeSession,
+            refreshUser,
             logout
         }}>
             {children}

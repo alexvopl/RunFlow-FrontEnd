@@ -1,4 +1,4 @@
-import { X, Trophy, TrendingUp } from 'lucide-react';
+import { X, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TrophyCompareModalProps {
@@ -54,60 +54,32 @@ export function TrophyCompareModal({ isOpen, onClose, userTrophies, compareWith 
 
                         <div className="space-y-3">
 
-                            {/* Comparaison */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className={compareWith ? 'grid grid-cols-2 gap-3' : ''}>
                                 <div className="glass-card rounded-[22px] p-5 text-center relative overflow-hidden">
                                     <div className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2">Toi</div>
                                     <div className="text-4xl font-black text-white mb-1">{userTrophies}</div>
-                                    <div className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">Ligue Maître</div>
+                                    <div className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">Score actuel</div>
                                     <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent pointer-events-none" />
                                 </div>
-                                <div className="glass-card rounded-[22px] p-5 text-center relative overflow-hidden">
+                                {compareWith && <div className="glass-card rounded-[22px] p-5 text-center relative overflow-hidden">
                                     <div className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-2">
-                                        {compareWith?.name || 'Mondial'}
+                                        {compareWith.name}
                                     </div>
                                     <div className="text-4xl font-black text-white mb-1">
-                                        {compareWith?.trophies ?? '750k+'}
+                                        {compareWith.trophies}
                                     </div>
                                     <div className="text-[9px] font-bold text-primary uppercase tracking-widest">
-                                        {compareWith ? 'Concurrent' : 'Top 1%'}
+                                        Concurrent
                                     </div>
                                     <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
-                                </div>
+                                </div>}
                             </div>
 
-                            {/* Progression */}
-                            <div className="glass-card rounded-[22px] p-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-green-500/15 border border-green-500/20 flex items-center justify-center">
-                                        <TrendingUp size={16} className="text-green-400" />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-black text-white">Progression</p>
-                                        <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest mt-0.5">+12 cette semaine</p>
-                                    </div>
-                                </div>
-                                <span className="text-green-400 font-black text-sm">+14%</span>
+                            {!compareWith && <div className="glass-card rounded-[22px] p-4 text-center">
+                                <p className="text-sm font-bold text-white">Le classement trophées arrive bientôt</p>
+                                <p className="text-[10px] text-text-muted mt-1">Cette carte affiche uniquement tes données réelles.</p>
                             </div>
-
-                            {/* Classement clan */}
-                            <div className="glass-card rounded-[22px] p-4">
-                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest mb-3">Classement Clan</p>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 glass-hero rounded-xl flex items-center justify-center font-black text-xs text-primary">#3</div>
-                                        <span className="text-sm font-bold text-white">Votre Clan</span>
-                                    </div>
-                                    <span className="text-sm font-black text-text-muted">75.4k</span>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={onClose}
-                                className="btn-primary w-full py-3.5 text-sm font-black"
-                            >
-                                Voir le Panthéon
-                            </button>
+                            }
                         </div>
                     </motion.div>
                 </motion.div>

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Settings, Gift, ChevronRight, Footprints, ShoppingBag, Heart, Bell, Crown, LogOut, Smartphone, ShieldCheck, Check, AlertCircle, Loader2, RefreshCw, Unlink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
-import { SocialModal } from '../components/profile/SocialModal';
 import { TrophyCompareModal } from '../components/profile/TrophyCompareModal';
 import { api } from '../services/api';
 import { Link, useNavigate } from 'react-router-dom';
@@ -15,7 +14,6 @@ export function Profile() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [socialModal, setSocialModal] = useState<{ isOpen: boolean; title: string } | null>(null);
     const [isTrophyModalOpen, setIsTrophyModalOpen] = useState(false);
     const [stravaStatus, setStravaStatus] = useState<{ connected: boolean; athlete?: any } | null>(null);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -154,13 +152,13 @@ export function Profile() {
 
                     <div className="flex items-center gap-8 mb-5 w-full justify-center">
                         {[
-                            { label: 'Abonnés', value: user?.followersCount || 0, onClick: () => setSocialModal({ isOpen: true, title: 'Abonnés' }) },
-                            { label: 'Abonnements', value: user?.followingCount || 0, onClick: () => setSocialModal({ isOpen: true, title: 'Abonnements' }) },
+                            { label: 'Ville', value: user?.city || '—' },
+                            { label: 'Niveau', value: user?.runnerLevel === 'beginner' ? 'Débutant' : user?.runnerLevel === 'advanced' ? 'Avancé' : user?.runnerLevel === 'intermediate' ? 'Intermédiaire' : '—' },
                             { label: 'Trophées', value: user?.trophies || 0, onClick: () => setIsTrophyModalOpen(true), amber: true },
                         ].map((stat, i, arr) => (
                             <div key={stat.label} className="flex items-center gap-8">
-                                <button onClick={stat.onClick} className="flex flex-col items-center gap-0.5 group">
-                                    <span className={`text-xl font-mono font-bold group-hover:scale-110 transition-transform ${stat.amber ? 'text-amber-400' : ''}`}>
+                                <button onClick={stat.onClick} disabled={!stat.onClick} className="flex flex-col items-center gap-0.5 group disabled:cursor-default">
+                                    <span className={`text-xl font-mono font-bold group-enabled:hover:scale-110 transition-transform ${stat.amber ? 'text-amber-400' : ''}`}>
                                         {stat.value}
                                     </span>
                                     <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">{stat.label}</span>
@@ -309,7 +307,6 @@ export function Profile() {
                 </div>
             </div>
 
-            <SocialModal isOpen={!!socialModal?.isOpen} onClose={() => setSocialModal(null)} title={socialModal?.title || ''} />
             <TrophyCompareModal isOpen={isTrophyModalOpen} onClose={() => setIsTrophyModalOpen(false)} userTrophies={user?.trophies || 0} />
         </div>
     );

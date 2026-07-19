@@ -64,6 +64,7 @@ export const getTypeCfg = (type: string): TypeCfg => TYPE_CONFIG[type] ?? DEFAUL
 
 export function resolveDeepLink(type: string, data?: Record<string, unknown>): string | null {
     // Data-driven routes take priority over type fallbacks
+    if (typeof data?.deepLink === 'string' && data.deepLink.startsWith('/')) return data.deepLink;
     if (data?.warId && data?.battleId) return `/wars/${data.warId as string}`;
     if (data?.warId) return `/wars/${data.warId as string}`;
     if (data?.challengeId) return `/challenges/${data.challengeId as string}`;

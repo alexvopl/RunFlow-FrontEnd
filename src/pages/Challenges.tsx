@@ -34,6 +34,19 @@ function formatWarTime(hours: number): string {
     return m > 0 ? `${h}h ${m}m restantes` : `${h}h restantes`;
 }
 
+function formatChallengeTime(challenge: any): string {
+    if (typeof challenge.timeLeft === 'string' && challenge.timeLeft.trim()) return challenge.timeLeft;
+    if (typeof challenge.daysRemaining === 'number') {
+        if (challenge.daysRemaining <= 0) return 'Dernier jour';
+        return `${challenge.daysRemaining} j`;
+    }
+    if (challenge.endDate) {
+        const days = Math.max(0, Math.ceil((Date.parse(challenge.endDate) - Date.now()) / 86_400_000));
+        return days === 0 ? 'Dernier jour' : `${days} j`;
+    }
+    return 'En cours';
+}
+
 function WarCard() {
     const navigate = useNavigate();
     const { data, loading } = useWarData(undefined, {
@@ -329,7 +342,7 @@ export function Challenges() {
                                             <div className="flex items-center gap-2">
                                                 <div className="flex items-center gap-1.5 text-text-muted">
                                                     <Timer size={12} />
-                                                    <span className="text-[10px] font-bold">{challenge.timeLeft || '—'}</span>
+                                                    <span className="text-[10px] font-bold">{formatChallengeTime(challenge)}</span>
                                                 </div>
                                                 <button onClick={e => { e.stopPropagation(); handleRefresh(challenge.id); }}
                                                     disabled={refreshingId === challenge.id}
