@@ -143,8 +143,29 @@ export const api = axios.create({
     },
 });
 
+// ── Compteur de requêtes en vol (pour le watchdog "page lente") ──────────────
+
+let pendingRequests = 0;
+type PendingListener = (count: number) => void;
+const pendingListeners = new Set<PendingListener>();
+
+function adjustPending(delta: number) {
+    pendingRequests = Math.max(0, pendingRequests + delta);
+    pendingListeners.forEach((listener) => listener(pendingRequests));
+}
+
+export const getPendingRequestCount = () => pendingRequests;
+
+export const subscribePendingRequests = (listener: PendingListener) => {
+    pendingListeners.add(listener);
+    return () => {
+        pendingListeners.delete(listener);
+    };
+};
+
 api.interceptors.request.use(
     (config) => {
+        adjustPending(1);
         const token = getAccessToken();
         if (token) {
             setAuthorizationHeader(config, token);
@@ -260,6 +281,7 @@ function mutationInvalidationTags(method?: string, rawUrl?: string): QueryTag[] 
 
 api.interceptors.response.use(
     (response) => {
+        adjustPending(-1);
         response.data = normalizeResponseData(response.data);
         notifyInvalidation(
             mutationInvalidationTags(response.config.method, response.config.url),
@@ -268,6 +290,7 @@ api.interceptors.response.use(
         return response;
     },
     async (error: AxiosError) => {
+        adjustPending(-1);
         if (error.response) {
             error.response.data = normalizeResponseData(error.response.data);
         }
