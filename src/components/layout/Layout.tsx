@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BottomNav } from './BottomNav';
 import { OfflineBanner } from './OfflineBanner';
 import { ErrorBoundary } from './ErrorBoundary';
+import { NotificationToaster } from '../notifications/NotificationToaster';
 import { useSlowPageWatchdog } from '../../hooks/useSlowPageWatchdog';
 
 export function Layout() {
@@ -16,6 +17,7 @@ export function Layout() {
     return (
         <div className="app-shell min-h-screen bg-background text-text font-sans antialiased overflow-x-hidden selection:bg-primary/20">
             <OfflineBanner />
+            <NotificationToaster />
             <AnimatePresence mode="wait">
                 <motion.main
                     key={location.pathname}
