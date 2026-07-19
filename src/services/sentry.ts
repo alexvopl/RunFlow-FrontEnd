@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/capacitor';
-import { init as sentryReactInit } from '@sentry/react';
+import { init as sentryReactInit, browserTracingIntegration } from '@sentry/react';
 
 /**
  * Initialise Sentry (reporting d'erreurs distant).
@@ -23,8 +23,13 @@ export function initSentry(): void {
         {
             dsn,
             environment: import.meta.env.MODE,
-            // Perf tracing désactivé : on ne suit que les erreurs (reste large dans le quota gratuit).
-            tracesSampleRate: 0,
+            // Suivi des perfs : capture les navigations lentes (ex. "la page Clan a mis 22s")
+            // et les appels API lents. C'est ce qui rend visibles les blocages/hangs
+            // qui ne lèvent aucune exception.
+            integrations: [browserTracingIntegration()],
+            // Beta : on capture 100% des navigations (trafic faible). À baisser (ex. 0.2)
+            // quand l'app aura plus d'utilisateurs, pour rester dans le quota gratuit.
+            tracesSampleRate: 1.0,
             // On garde les logs console.error/warn locaux visibles pendant le dev.
             debug: false,
         },
