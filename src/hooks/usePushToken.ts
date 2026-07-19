@@ -3,10 +3,13 @@ import { api } from '../services/api';
 
 const STORAGE_KEY = 'runflow_push_token_v1';
 
-function vapidToUint8Array(base64: string): Uint8Array {
+function vapidToArrayBuffer(base64: string): ArrayBuffer {
     const padding = '='.repeat((4 - (base64.length % 4)) % 4);
     const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
-    return Uint8Array.from([...atob(b64)].map(c => c.charCodeAt(0)));
+    const bytes = Uint8Array.from([...atob(b64)].map(c => c.charCodeAt(0)));
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    return buffer;
 }
 
 export async function registerPushToken(): Promise<void> {
@@ -22,7 +25,7 @@ export async function registerPushToken(): Promise<void> {
         const existing = await reg.pushManager.getSubscription();
         const sub = existing ?? await reg.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: vapidToUint8Array(vapidKey),
+            applicationServerKey: vapidToArrayBuffer(vapidKey),
         });
         const token = JSON.stringify(sub);
         if (token === stored) return;

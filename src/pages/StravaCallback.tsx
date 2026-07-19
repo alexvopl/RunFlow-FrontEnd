@@ -12,6 +12,7 @@ export function StravaCallback() {
     useEffect(() => {
         const connectStrava = async () => {
             const code = searchParams.get('code');
+            const state = searchParams.get('state');
             const error = searchParams.get('error');
 
             if (error) {
@@ -20,14 +21,14 @@ export function StravaCallback() {
                 return;
             }
 
-            if (!code) {
+            if (!code || !state) {
                 setStatus('error');
-                setErrorMsg('Aucun code d\'autorisation reçu');
+                setErrorMsg('Réponse d\'autorisation Strava incomplète');
                 return;
             }
 
             try {
-                await api.post('/strava/connect', { code });
+                await api.post('/strava/connect', { code, state });
                 setStatus('success');
                 // Success! Redirect to profile after a short delay
                 setTimeout(() => {
