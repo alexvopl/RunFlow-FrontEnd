@@ -4,10 +4,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BottomNav } from './BottomNav';
 import { OfflineBanner } from './OfflineBanner';
 import { ErrorBoundary } from './ErrorBoundary';
+import { useSlowPageWatchdog } from '../../hooks/useSlowPageWatchdog';
 
 export function Layout() {
     const location = useLocation();
     const isWorkout = location.pathname === '/workout';
+
+    // Alerte Sentry si une page met plus de 4 s à se charger.
+    useSlowPageWatchdog(4000);
 
     return (
         <div className="app-shell min-h-screen bg-background text-text font-sans antialiased overflow-x-hidden selection:bg-primary/20">
